@@ -1,66 +1,31 @@
-import json
-import os
-from typing import List
+# Отчет по Практике 2: Дима Милана Вячеславовна
 
-"""
-ПРАКТИКА 2: ПРОФЕССИОНАЛЬНЫЙ ПРОМПТИНГ (R.C.T.F.)
-Курс: AI-инструменты в жизни инженера (ИТМО)
+## 1. Анализ промптов R.C.T.F.
 
-ИНСТРУКЦИЯ:
-В этой практике мы учимся не просто "болтать" с AI, а программировать его поведение
-с помощью фреймворка R.C.T.F. (Role, Context, Task, Format).
-"""
-
-# =================================================================================================
-# 1. ИНФОРМАЦИЯ
-# =================================================================================================
-STUDENT_INFO = {
-    "full_name": "Дима Милана Вячеславовна",
-    "group_number": "M3305",
-    "date": "2026-02-20"
-}
-
-# =================================================================================================
-# 2. ЖУРНАЛ R.C.T.F. (Самая важная часть!)
-# =================================================================================================
-class RCTF_Log:
-    def __init__(self, task_name: str, role: str, context: str, task: str, format_instruction: str, result: str):
-        self.task_name = task_name
-        self.role = role             # R: Кто такой AI? (Senior QA, Architect...)
-        self.context = context       # C: Контекст проекта (Веб-сервис, Python, FastAPI...)
-        self.task = task             # T: Что конкретно сделать?
-        self.format = format_instruction # F: В каком виде выдать ответ? (Markdown, Gherkin...)
-        self.result = result         # Итог (кратко)
-
-PROMPT_LOGS: List[RCTF_Log] = [
-    RCTF_Log(
-        task_name="Mermaid Diagram v2",
-        role="Senior DevOps Architect с опытом проектирования микросервисных систем",
-        context="Мы проектируем сервис 'WeatherService' — REST API для уведомлений о погоде. Текущие компоненты: 1. FastAPI Backend (REST API) 2. PostgreSQL Database (подписки пользователей) 3. OpenWeatherMap API (данные о погоде) 4. Client Apps (веб/мобильные приложения) Технологический стек: - Backend: Python (FastAPI) - База данных: PostgreSQL - Внешний API: OpenWeatherMap (REST) - Client Apps: Веб/мобильные приложения Новое требование: добавить Redis для кэширования данных о погоде.",
-        task="Модифицируй нашу базовую архитектуру: 1. Добавь Redis как компонент кэширования данных о погоде 2. Укажи протоколы взаимодействия между компонентами (REST, HTTP) 3. Добавь Rate Limiter для защиты API",
-        format_instruction="Сгенерируй Mermaid диаграмму компонентов. Требования к схеме: - Используй формат `graph TB` или `graph LR` - Для каждого компонента добавь краткое описание в квадратных скобках - Укажи протоколы на связях (например: \"|REST API|\") - Используй разные формы для разных типов компонентов ([] для сервисов, (()) для БД, {} для внешних API)",
-        result="Сгенерировал обновленную диаграмму"
-    ),
-    RCTF_Log(
-        task_name="Gherkin Scenarios",
-        role="опытный QA Automation Engineer с 8-летним опытом в написании автоматизированных тестов для веб-сервисов и ботов.",
-        context="У нас есть User Story: Подписка на утреннюю сводку (v1.0) - Как пользователь, я хочу подписаться на ежедневную утреннюю сводку по email для моей локации, чтобы получать краткий прогноз перед выходом из дома. - Acceptance criteria: - Есть кнопка подписки в UI прогноза. - Форма собирает email и тип уведомления (утренняя сводка). - На email отправляется письмо подтверждения с ссылкой. - После подтверждения у пользователя появляется запись в БД подписок. Технический контекст: - Система: REST API на Python (FastAPI) - API погоды: OpenWeatherMap - База данных: PostgreSQL (хранит: email, city, notification_time) - Кэширование: Redis (кэш данных о погоде с TTL 10 минут) Пользовательский флоу через API: 1. Клиент отправляет POST /subscribe с {city, email} 2. API проверяет существование города через OpenWeatherMap 3. API сохраняет подписку в PostgreSQL 4. API возвращает подтверждение с данными о погоде",
-        task="Acceptance Criteria:	•	В UI прогноза есть кнопка «Подписаться на утреннюю сводку».	•	В форме подписки собираются: email и тип уведомления (утренняя сводка).	•	При POST /subscribe с {city, email} система проверяет город через OpenWeatherMap.	•	Если город валиден — создаётся подписка в PostgreSQL (email, city, notification_time=утро) и возвращаются данные о погоде.	•	Пользователю отправляется письмо подтверждения со ссылкой; после перехода по ссылке подписка становится активной.	•	Дубликат подписки (тот же email+city) не создаётся (возвращается ошибка).	•	Несуществующий город отклоняется (возвращается ошибка), запись в БД не создаётся.•	Город с лишними пробелами/спецсимволами корректно обрабатывается (нормализуется) или отклоняется, если OpenWeatherMap не распознаёт.	•	Данные погоды кэшируются в Redis на 10 минут.",
-        format_instruction="Используй строгий Gherkin-синтаксис (Given/When/Then). Cтруктура:Scenario 1: [Название позитивного сценария]  Given [предусловие]  When [действие] Then [ожидаемый результат]   And [дополнительная проверка] Scenario 2: [Название негативного сценария] аналогично Требования: - Минимум 2 позитивных сценария - Минимум 2 негативных сценария (несуществующий город, дубликат подписки) - 1 граничный случай (город с пробелами/спецсимволами) - Итого: минимум 5 сценариев",
-        result="Сгенерировал 6 сценариев в формате Gherkin"
-    ),
-    RCTF_Log(
-        task_name="DoR v2.0",
-        role="Product Owner с 5-летним опытом в Agile/Scrum",
-        context="Мы разрабатываем WeatherService — REST API для уведомлений о погоде. Наш текущий Definition of Ready v1.0: 1. User story и Acceptance Criteria - Полное описание user story и минимум 2–3 acceptance criteria в Gherkin-стиле (Given/When/Then). - Критерии включают проверку создания подписки, подтверждения, доставки и обработки ошибок. 2. UX/Copy и дизайн-артефакты - Финальные макеты экранов/модалей для подписки, подтверждения и управления подписками. - Текст писем/SMS и i18n-ключи готовы. Включены примеры CTA и fallback-тексты для недостающих полей. 3. API / Events контракт и payload samples - Описаны REST-эндпоинты и внутренние события (см. plans/backend_requirements.md), включены примеры request/response и webhook payloads. - Назначен владелец контракта (API owner). 4. Инфраструктурные зависимости и конфигурация - Указаны провайдеры (email/SMS/push), очередь сообщений, quota и credentials; есть доступы/секреты в vault или инструкция для их получения. - Наличие feature-flag для поэтапного включения канала/ретраев. 5. Observability и тестовые данные - Список метрик/дэшбордов (delivery_rate, p95 latency, DLQ count) и критерии тревоги. - Подготовлены тестовые контакты/токены и план для e2e тестов (включая симуляцию ошибок провайдера). 6. Соответствие и безопасность - Модель согласий (consent) определена и хранение контактов соответствует политике конфиденциальности. - Определён процесс обработки DSR (удаление/анонимизация) и требования по шифрованию. Проблемы v1.0: - Слишком общий - Нет структуры по категориям - Нет специфики для REST API проекта",
-        task="Создай улучшенную версию Definition of Ready v2.0.",
-        format_instruction="Структурированный чек-лист в Markdown с категориями: - Requirements (требования к задаче) - Technical (технические аспекты) - Design (дизайн API/контракты) - Testing (тестирование) - Documentation (документация) Каждая категория должна содержать 3-5 конкретных пунктов.",
-        result="Сгенерировал структурированный чек-лист DoR v2.0"
-    ),
-    RCTF_Log(
-        task_name="DoD v2.0",
-        role="Scrum Master с опытом в DevOps и CI/CD.",
-        context="""Мы разрабатываем WeatherService — REST API для уведомлений о погоде.
+### Mermaid Diagram v2
+**Role:** Senior DevOps Architect с опытом проектирования микросервисных систем
+**Context:** Мы проектируем сервис 'WeatherService' — REST API для уведомлений о погоде. Текущие компоненты: 1. FastAPI Backend (REST API) 2. PostgreSQL Database (подписки пользователей) 3. OpenWeatherMap API (данные о погоде) 4. Client Apps (веб/мобильные приложения) Технологический стек: - Backend: Python (FastAPI) - База данных: PostgreSQL - Внешний API: OpenWeatherMap (REST) - Client Apps: Веб/мобильные приложения Новое требование: добавить Redis для кэширования данных о погоде.
+**Task:** Модифицируй нашу базовую архитектуру: 1. Добавь Redis как компонент кэширования данных о погоде 2. Укажи протоколы взаимодействия между компонентами (REST, HTTP) 3. Добавь Rate Limiter для защиты API
+**Format:** Сгенерируй Mermaid диаграмму компонентов. Требования к схеме: - Используй формат `graph TB` или `graph LR` - Для каждого компонента добавь краткое описание в квадратных скобках - Укажи протоколы на связях (например: "|REST API|") - Используй разные формы для разных типов компонентов ([] для сервисов, (()) для БД, {} для внешних API)
+**Результат:** Сгенерировал обновленную диаграмму
+---
+### Gherkin Scenarios
+**Role:** опытный QA Automation Engineer с 8-летним опытом в написании автоматизированных тестов для веб-сервисов и ботов.
+**Context:** У нас есть User Story: Подписка на утреннюю сводку (v1.0) - Как пользователь, я хочу подписаться на ежедневную утреннюю сводку по email для моей локации, чтобы получать краткий прогноз перед выходом из дома. - Acceptance criteria: - Есть кнопка подписки в UI прогноза. - Форма собирает email и тип уведомления (утренняя сводка). - На email отправляется письмо подтверждения с ссылкой. - После подтверждения у пользователя появляется запись в БД подписок. Технический контекст: - Система: REST API на Python (FastAPI) - API погоды: OpenWeatherMap - База данных: PostgreSQL (хранит: email, city, notification_time) - Кэширование: Redis (кэш данных о погоде с TTL 10 минут) Пользовательский флоу через API: 1. Клиент отправляет POST /subscribe с {city, email} 2. API проверяет существование города через OpenWeatherMap 3. API сохраняет подписку в PostgreSQL 4. API возвращает подтверждение с данными о погоде
+**Task:** Acceptance Criteria:	•	В UI прогноза есть кнопка «Подписаться на утреннюю сводку».	•	В форме подписки собираются: email и тип уведомления (утренняя сводка).	•	При POST /subscribe с {city, email} система проверяет город через OpenWeatherMap.	•	Если город валиден — создаётся подписка в PostgreSQL (email, city, notification_time=утро) и возвращаются данные о погоде.	•	Пользователю отправляется письмо подтверждения со ссылкой; после перехода по ссылке подписка становится активной.	•	Дубликат подписки (тот же email+city) не создаётся (возвращается ошибка).	•	Несуществующий город отклоняется (возвращается ошибка), запись в БД не создаётся.•	Город с лишними пробелами/спецсимволами корректно обрабатывается (нормализуется) или отклоняется, если OpenWeatherMap не распознаёт.	•	Данные погоды кэшируются в Redis на 10 минут.
+**Format:** Используй строгий Gherkin-синтаксис (Given/When/Then). Cтруктура:Scenario 1: [Название позитивного сценария]  Given [предусловие]  When [действие] Then [ожидаемый результат]   And [дополнительная проверка] Scenario 2: [Название негативного сценария] аналогично Требования: - Минимум 2 позитивных сценария - Минимум 2 негативных сценария (несуществующий город, дубликат подписки) - 1 граничный случай (город с пробелами/спецсимволами) - Итого: минимум 5 сценариев
+**Результат:** Сгенерировал 6 сценариев в формате Gherkin
+---
+### DoR v2.0
+**Role:** Product Owner с 5-летним опытом в Agile/Scrum
+**Context:** Мы разрабатываем WeatherService — REST API для уведомлений о погоде. Наш текущий Definition of Ready v1.0: 1. User story и Acceptance Criteria - Полное описание user story и минимум 2–3 acceptance criteria в Gherkin-стиле (Given/When/Then). - Критерии включают проверку создания подписки, подтверждения, доставки и обработки ошибок. 2. UX/Copy и дизайн-артефакты - Финальные макеты экранов/модалей для подписки, подтверждения и управления подписками. - Текст писем/SMS и i18n-ключи готовы. Включены примеры CTA и fallback-тексты для недостающих полей. 3. API / Events контракт и payload samples - Описаны REST-эндпоинты и внутренние события (см. plans/backend_requirements.md), включены примеры request/response и webhook payloads. - Назначен владелец контракта (API owner). 4. Инфраструктурные зависимости и конфигурация - Указаны провайдеры (email/SMS/push), очередь сообщений, quota и credentials; есть доступы/секреты в vault или инструкция для их получения. - Наличие feature-flag для поэтапного включения канала/ретраев. 5. Observability и тестовые данные - Список метрик/дэшбордов (delivery_rate, p95 latency, DLQ count) и критерии тревоги. - Подготовлены тестовые контакты/токены и план для e2e тестов (включая симуляцию ошибок провайдера). 6. Соответствие и безопасность - Модель согласий (consent) определена и хранение контактов соответствует политике конфиденциальности. - Определён процесс обработки DSR (удаление/анонимизация) и требования по шифрованию. Проблемы v1.0: - Слишком общий - Нет структуры по категориям - Нет специфики для REST API проекта
+**Task:** Создай улучшенную версию Definition of Ready v2.0.
+**Format:** Структурированный чек-лист в Markdown с категориями: - Requirements (требования к задаче) - Technical (технические аспекты) - Design (дизайн API/контракты) - Testing (тестирование) - Documentation (документация) Каждая категория должна содержать 3-5 конкретных пунктов.
+**Результат:** Сгенерировал структурированный чек-лист DoR v2.0
+---
+### DoD v2.0
+**Role:** Scrum Master с опытом в DevOps и CI/CD.
+**Context:** Мы разрабатываем WeatherService — REST API для уведомлений о погоде.
 Наш текущий Definition of Done v1.0:
 DoD (Definition of Done) — Подписки и Уведомления (WeatherService)
 Список из 5 пунктов, необходимых для пометки фичи как готовой к релизу.
@@ -82,21 +47,20 @@ DoD (Definition of Done) — Подписки и Уведомления (Weather
 Проблемы v1.0:
 - Недостаточно деталей
 - Нет структуры
-- Нет специфики для REST API""",
-        task="Создай улучшенную версию Definition of Done v2.0.",
-        format_instruction="""Структурированный чек-лист в Markdown с категориями:
+- Нет специфики для REST API
+**Task:** Создай улучшенную версию Definition of Done v2.0.
+**Format:** Структурированный чек-лист в Markdown с категориями:
 - Code (код)
 - Tests (тесты)
 - Documentation (документация)
 - Review (код-ревью)
 - Deployment (деплой)
-Каждая категория должна содержать 3-5 конкретных пунктов.""",
-        result="Сгенерировал структурированный чек-лист DoD v2.0"
-    ),
-    RCTF_Log(
-        task_name="Test Plan v2.0",
-        role="Test Lead с 10-летним опытом в тестировании Python-приложений и микросервисов.Test Lead с 10-летним опытом в тестировании Python-приложений и микросервисов.",
-        context="""Мы готовимся к тестированию User Story:
+Каждая категория должна содержать 3-5 конкретных пунктов.
+**Результат:** Сгенерировал структурированный чек-лист DoD v2.0
+---
+### Test Plan v2.0
+**Role:** Test Lead с 10-летним опытом в тестировании Python-приложений и микросервисов.Test Lead с 10-летним опытом в тестировании Python-приложений и микросервисов.
+**Context:** Мы готовимся к тестированию User Story:
 Подписка на утреннюю сводку (v1.0)
    - Как пользователь, я хочу подписаться на ежедневную утреннюю сводку по email для моей локации, чтобы получать краткий прогноз перед выходом из дома.
    - Acceptance criteria:
@@ -121,157 +85,30 @@ graph TB
 Технологии тестирования:
 - Unit: pytest, pytest-asyncio
 - Integration: pytest, testcontainers (для Redis, PostgreSQL)
-- E2E: pytest, httpx (тестирование HTTP endpoints)""",
-        task="Создай комплексный план тестирования для этой фичи. Включи тесты на всех уровнях: unit, integration, end-to-end.",
-        format_instruction="""Markdown-таблица со следующими колонками:
+- E2E: pytest, httpx (тестирование HTTP endpoints)
+**Task:** Создай комплексный план тестирования для этой фичи. Включи тесты на всех уровнях: unit, integration, end-to-end.
+**Format:** Markdown-таблица со следующими колонками:
 | ID | Тип | Компонент | Описание | Предусловия | Шаги | Ожидаемый результат |
 Требования:
 - Минимум 12 тест-кейсов
 - Распределение: ~50% unit, ~30% integration, ~20% e2e
 - ID формата: TC-001, TC-002, ...
 - Тип: Unit/Integration/E2E
-- Покрыть позитивные, негативные и граничные случаи""",
-        result="Сгенерировал 20 тест-кейсов, распределённых по уровням тестирования"
-    ),
-    RCTF_Log(
-        task_name="Functional Delivery v2.0",
-        role="Senior Delivery Manager с опытом в Agile и управлении бэклогом.",
-        context="У нас есть базовые Jira-тикеты для WeatherService v1.0:"
-                " Jira tickets (8) — WeatherService: Подписки и Уведомления"
-                "Ниже 8 тикетов, готовых для импорта в Jira. Каждый тикет содержит Title, Description, Acceptance Criteria, Test cases и Dependencies/Notes."
-                "---"
-                "1) Title: SUB-001 — Subscription API и модель данных"
-                "Description:"
-                "  Разработать REST API для создания, подтверждения, получения и обновления подписок. Реализовать модель Subscription в Postgres с полями contact, channels, preferences, consent, status."
-                "Acceptance Criteria:"
-                "  - POST /api/v1/subscriptions создает запись со статусом pending"
-                "  - POST /api/v1/subscriptions/confirm переводит статус в active при валидном токене"
-                "  - GET /api/v1/subscriptions/{id} возвращает корректные данные"
-                "  - PATCH /api/v1/subscriptions/{id} обновляет preferences и channels"
-                "Test cases:"
-                "  - TC: создать подписку с валидным email -> проверить pending запись"
-                "  - TC: подтвердить подписку по токену -> статус active"
-                "  - TC: обновить каналы -> проверки в БД"
-                "Dependencies/Notes:"
-                "  - Зависит от: доступ к Postgres, секреты для генерации токенов"
-                "  - Design: UX-макеты подписки (см. [plans/cjm.md](plans/cjm.md:1))"
-                "---"
-                "2) Title: SUB-002 — Email confirmation flow и шаблоны"
-                "Description:"
-                "  Реализовать отправку email-подтверждений при создании подписки, шаблоны письма и endpoint для повторной отправки подтверждения."
-                "Acceptance Criteria:"
-                "  - Письмо с confirmation_link отправляется при создании подписки"
-                "  - confirmation_link ведёт на API, где POST /subscriptions/confirm принимает токен"
-                "  - В письме есть unsubscribe-link"
-                "Test cases:"
-                "  - TC: создать подписку -> проверить отправку email (mock/провайдер)"
-                "  - TC: ссылка подтверждения переводит подписку в active"
-                "  - TC: письмо содержит unsubscribe ссылку"
-                "Dependencies/Notes:"
-                "  - Интеграция с провайдером email (SendGrid/SES)"
-                "  - Требуется шаблоны i18n (см. [plans/notification_templates.md](plans/notification_templates.md:1))"
-                "---"
-                "3) Title: SUB-003 — Push интеграция (FCM / APNs)"
-                "Description:"
-                "  Поддержать push-уведомления: регистрацию device_token, отправку тестового уведомления и обработку статусов доставки."
-                "Acceptance Criteria:"
-                "  - UI/endpoint для регистрации device_token реализован"
-                "  - Тестовое push-уведомление доставляется при нажатии кнопки"
-                "  - Webhook/статусы провайдера корректно обрабатываются"
-                "Test cases:"
-                "  - TC: зарегистрировать device_token -> отправить test push -> проверить dispatched"
-                "  - TC: симуляция провайдера returning delivered/failed -> проверить обновление NotificationRecord"
-                "Dependencies/Notes:"
-                "  - Нужны ключи FCM/APNs и настройка push adapter"
-                "  - Обратить внимание на platform-specific permission flows"
-                "---"
-                "4) Title: SUB-004 — SMS для критических предупреждений"
-                "Description:"
-                "  Добавить канал SMS для критических предупреждений: форма добавления номера, верификация (код/SMS) и интеграция с SMS-провайдером."
-                "Acceptance Criteria:"
-                "  - Пользователь может добавить номер телефона и выбрать SMS для alerts"
-                "  - При срабатывании alert генерируется SMS и отправляется провайдеру"
-                "  - Логируются статусы отправки и попытки"
-                "Test cases:"
-                "  - TC: добавить номер -> получить код подтверждения -> подтвердить"
-                "  - TC: при trigger alert -> проверить запись в NotificationRecord и попытки отправки"
-                "  - TC: симуляция failed -> retry и DLQ поведение"
-                "Dependencies/Notes:"
-                "  - Интеграция с локальным или глобальным SMS провайдером (Twilio и т.п.)"
-                "  - Региональные ограничения и стоимость"
-                "---"
-                "5) Title: SUB-005 — Delivery Pipeline: Dispatcher, Retry и DLQ"
-                "Description:"
-                "  Построить pipeline: EventBus (queue) -> Dispatcher workers -> Provider adapters; реализовать retry policy (exponential backoff) и DLQ."
-                "Acceptance Criteria:"
-                "  - Notifications от scheduler/rules попадают в очередь"
-                "  - Dispatcher пытается отправить, повторяет по конфигу и помещает в DLQ при исчерпании попыток"
-                "  - NotificationRecord хранит attempts, last_error и provider_message_id"
-                "Test cases:"
-                "  - TC: enqueue notification -> dispatcher обрабатывает -> provider получает request"
-                "  - TC: симуляция 5xx -> multiple retries -> после N попыток запись в DLQ"
-                "  - TC: idempotency: повторный enqueue с тем же idempotency-key не создает дубликата"
-                "Dependencies/Notes:"
-                "  - Требуется выбор EventBus (Kafka/Rabbit/SQS)"
-                "  - Инструментирование tracing/metrics"
-                "---"
-                "6) Title: SUB-006 — Rules Engine и триггеры (cron/threshold)"
-                "Description:"
-                "  Реализовать rules engine для scheduled и threshold-based триггеров, экспортировать событие notification.scheduled в очередь."
-                "Acceptance Criteria:"
-                "  - Можно создать правило: cron (daily_summary) и threshold (например wind_speed > X)"
-                "  - При наступлении условия генерируется event notification.scheduled"
-                "  - Rules могут быть привязаны к локациям и подпискам"
-                "Test cases:"
-                "  - TC: создать cron-rule -> проверить generation of events в ожидаемое время"
-                "  - TC: создать threshold-rule -> отправить mock-weather-event -> проверить генерацию notification"
-                "Dependencies/Notes:"
-                "  - Возможно выделенный сервис rules-engine или использование существующего scheduler"
-                "---"
-                "7) Title: SUB-007 — Observability, метрики и алерты"
-                "Description:"
-                "  Настроить сбор метрик и дашборды: delivery_rate, attempts, p95 dispatch latency, DLQ count; настроить алерты при деградации."
-                "Acceptance Criteria:"
-                "  - Есть дашборд с ключевыми SLI/SLAs"
-                "  - Настроены алерты: drop in delivery_rate, DLQ spike, p95 latency > threshold"
-                "  - События трассируются через pipeline (request_id/event_id)"
-                "Test cases:"
-                "  - TC: сымитировать падение delivery_rate -> проверить, что alert сработал"
-                "  - TC: проверить наличие трассы по request_id в логах для заданного notification_id"
-                "Dependencies/Notes:"
-                "  - Интеграция с Prometheus/Grafana или облачной APM"
-                "---"
-                "8) Title: SUB-008 — Compliance, Consent и DSR"
-                "Description:"
-                "  Обеспечить хранение согласий (consent), реализацию процесса DSR (удаление/анонимизация), audit-log всех изменений статуса подписки."
-                "Acceptance Criteria:"
-                "  - Consent сохраняется при создании подписки с timestamp и source"
-                "  - Есть API для подачи DSR и удаления/анонимизации контакта"
-                "  - Audit-log сохраняет все изменения статусов и запросы на удаление"
-                "Test cases:"
-                "  - TC: создать подписку с consent -> проверить запись consent"
-                "  - TC: выполнить DSR -> проверить удаление/анонимизацию и audit-log"
-                "Dependencies/Notes:"
-                "  - Согласовать с legal/GDPR командой формат хранения и retention policy"
-                "---"
-                "Проблемы текущих тикетов:"
-                "- Недостаточно детальные Acceptance Criteria"
-                "- Нет зависимостей между тикетами"
-                "- Нет приоритетов"
-                "- Нет оценок времени"
-                "- Тест-кейсы слишком общие",
-        task="Улучши эти тикеты до профессионального уровня.",
-        format_instruction="Структурированный список тикетов в Markdown. Каждый тикет должен содержать: - Title (название) - Description (описание задачи) - Acceptance Criteria (детальные в формате Given/When/Then) - Test Cases (детальные тест-кейсы) - Dependencies (зависимости от других тикетов) - Priority (High/Medium/Low) - Estimate (story points или часы)",
-        result="Сгенерировал улучшенные Jira-тикеты"
-    ),
-]
+- Покрыть позитивные, негативные и граничные случаи
+**Результат:** Сгенерировал 20 тест-кейсов, распределённых по уровням тестирования
+---
+### Functional Delivery v2.0
+**Role:** Senior Delivery Manager с опытом в Agile и управлении бэклогом.
+**Context:** У нас есть базовые Jira-тикеты для WeatherService v1.0: Jira tickets (8) — WeatherService: Подписки и УведомленияНиже 8 тикетов, готовых для импорта в Jira. Каждый тикет содержит Title, Description, Acceptance Criteria, Test cases и Dependencies/Notes.---1) Title: SUB-001 — Subscription API и модель данныхDescription:  Разработать REST API для создания, подтверждения, получения и обновления подписок. Реализовать модель Subscription в Postgres с полями contact, channels, preferences, consent, status.Acceptance Criteria:  - POST /api/v1/subscriptions создает запись со статусом pending  - POST /api/v1/subscriptions/confirm переводит статус в active при валидном токене  - GET /api/v1/subscriptions/{id} возвращает корректные данные  - PATCH /api/v1/subscriptions/{id} обновляет preferences и channelsTest cases:  - TC: создать подписку с валидным email -> проверить pending запись  - TC: подтвердить подписку по токену -> статус active  - TC: обновить каналы -> проверки в БДDependencies/Notes:  - Зависит от: доступ к Postgres, секреты для генерации токенов  - Design: UX-макеты подписки (см. [plans/cjm.md](plans/cjm.md:1))---2) Title: SUB-002 — Email confirmation flow и шаблоныDescription:  Реализовать отправку email-подтверждений при создании подписки, шаблоны письма и endpoint для повторной отправки подтверждения.Acceptance Criteria:  - Письмо с confirmation_link отправляется при создании подписки  - confirmation_link ведёт на API, где POST /subscriptions/confirm принимает токен  - В письме есть unsubscribe-linkTest cases:  - TC: создать подписку -> проверить отправку email (mock/провайдер)  - TC: ссылка подтверждения переводит подписку в active  - TC: письмо содержит unsubscribe ссылкуDependencies/Notes:  - Интеграция с провайдером email (SendGrid/SES)  - Требуется шаблоны i18n (см. [plans/notification_templates.md](plans/notification_templates.md:1))---3) Title: SUB-003 — Push интеграция (FCM / APNs)Description:  Поддержать push-уведомления: регистрацию device_token, отправку тестового уведомления и обработку статусов доставки.Acceptance Criteria:  - UI/endpoint для регистрации device_token реализован  - Тестовое push-уведомление доставляется при нажатии кнопки  - Webhook/статусы провайдера корректно обрабатываютсяTest cases:  - TC: зарегистрировать device_token -> отправить test push -> проверить dispatched  - TC: симуляция провайдера returning delivered/failed -> проверить обновление NotificationRecordDependencies/Notes:  - Нужны ключи FCM/APNs и настройка push adapter  - Обратить внимание на platform-specific permission flows---4) Title: SUB-004 — SMS для критических предупрежденийDescription:  Добавить канал SMS для критических предупреждений: форма добавления номера, верификация (код/SMS) и интеграция с SMS-провайдером.Acceptance Criteria:  - Пользователь может добавить номер телефона и выбрать SMS для alerts  - При срабатывании alert генерируется SMS и отправляется провайдеру  - Логируются статусы отправки и попыткиTest cases:  - TC: добавить номер -> получить код подтверждения -> подтвердить  - TC: при trigger alert -> проверить запись в NotificationRecord и попытки отправки  - TC: симуляция failed -> retry и DLQ поведениеDependencies/Notes:  - Интеграция с локальным или глобальным SMS провайдером (Twilio и т.п.)  - Региональные ограничения и стоимость---5) Title: SUB-005 — Delivery Pipeline: Dispatcher, Retry и DLQDescription:  Построить pipeline: EventBus (queue) -> Dispatcher workers -> Provider adapters; реализовать retry policy (exponential backoff) и DLQ.Acceptance Criteria:  - Notifications от scheduler/rules попадают в очередь  - Dispatcher пытается отправить, повторяет по конфигу и помещает в DLQ при исчерпании попыток  - NotificationRecord хранит attempts, last_error и provider_message_idTest cases:  - TC: enqueue notification -> dispatcher обрабатывает -> provider получает request  - TC: симуляция 5xx -> multiple retries -> после N попыток запись в DLQ  - TC: idempotency: повторный enqueue с тем же idempotency-key не создает дубликатаDependencies/Notes:  - Требуется выбор EventBus (Kafka/Rabbit/SQS)  - Инструментирование tracing/metrics---6) Title: SUB-006 — Rules Engine и триггеры (cron/threshold)Description:  Реализовать rules engine для scheduled и threshold-based триггеров, экспортировать событие notification.scheduled в очередь.Acceptance Criteria:  - Можно создать правило: cron (daily_summary) и threshold (например wind_speed > X)  - При наступлении условия генерируется event notification.scheduled  - Rules могут быть привязаны к локациям и подпискамTest cases:  - TC: создать cron-rule -> проверить generation of events в ожидаемое время  - TC: создать threshold-rule -> отправить mock-weather-event -> проверить генерацию notificationDependencies/Notes:  - Возможно выделенный сервис rules-engine или использование существующего scheduler---7) Title: SUB-007 — Observability, метрики и алертыDescription:  Настроить сбор метрик и дашборды: delivery_rate, attempts, p95 dispatch latency, DLQ count; настроить алерты при деградации.Acceptance Criteria:  - Есть дашборд с ключевыми SLI/SLAs  - Настроены алерты: drop in delivery_rate, DLQ spike, p95 latency > threshold  - События трассируются через pipeline (request_id/event_id)Test cases:  - TC: сымитировать падение delivery_rate -> проверить, что alert сработал  - TC: проверить наличие трассы по request_id в логах для заданного notification_idDependencies/Notes:  - Интеграция с Prometheus/Grafana или облачной APM---8) Title: SUB-008 — Compliance, Consent и DSRDescription:  Обеспечить хранение согласий (consent), реализацию процесса DSR (удаление/анонимизация), audit-log всех изменений статуса подписки.Acceptance Criteria:  - Consent сохраняется при создании подписки с timestamp и source  - Есть API для подачи DSR и удаления/анонимизации контакта  - Audit-log сохраняет все изменения статусов и запросы на удалениеTest cases:  - TC: создать подписку с consent -> проверить запись consent  - TC: выполнить DSR -> проверить удаление/анонимизацию и audit-logDependencies/Notes:  - Согласовать с legal/GDPR командой формат хранения и retention policy---Проблемы текущих тикетов:- Недостаточно детальные Acceptance Criteria- Нет зависимостей между тикетами- Нет приоритетов- Нет оценок времени- Тест-кейсы слишком общие
+**Task:** Улучши эти тикеты до профессионального уровня.
+**Format:** Структурированный список тикетов в Markdown. Каждый тикет должен содержать: - Title (название) - Description (описание задачи) - Acceptance Criteria (детальные в формате Given/When/Then) - Test Cases (детальные тест-кейсы) - Dependencies (зависимости от других тикетов) - Priority (High/Medium/Low) - Estimate (story points или часы)
+**Результат:** Сгенерировал улучшенные Jira-тикеты
+---
+## 2. Улучшенные артефакты
 
-# =================================================================================================
-# 3. АРТЕФАКТЫ (Улучшенные версии из Практики 1)
-# =================================================================================================
+### Mermaid v2
+```mermaid
 
-# Задание 1: Улучшенная Архитектура (Mermaid v2)
-MERMAID_V2 = """
 graph TB
   %% Clients
   WEB[Web Client App<br/>UI for managing subscriptions & viewing forecasts]
@@ -306,10 +143,12 @@ graph TB
   OWM -->|HTTPS JSON| API
 
   %% Notes: cache fill path is implicit: miss -> OWM -> API -> REDIS (set with TTL) -> respond
-"""
 
-# Задание 2: Gherkin Scenarios (BDD)
-GHERKIN_SCENARIOS = """
+```
+
+### Gherkin Scenarios
+```gherkin
+
 Feature: Morning email digest subscription v1.0
 
   Background:
@@ -387,10 +226,11 @@ Feature: Morning email digest subscription v1.0
       | 400            |
     And no subscription record should be created in PostgreSQL for email "user6@example.com"
     And no confirmation email should be sent to "user6@example.com"
-"""
 
-# Задание 3: Улучшенные DoR и DoD v2.0
-DOR_V2 = """
+```
+
+### DoR v2.0
+
 DoR v2.0 — WeatherService (REST API: Подписки и Уведомления)
 
 Requirements
@@ -427,9 +267,10 @@ Documentation
 	•	Описаны настройки и конфиги: переменные окружения, ключи OWM, Redis/DB, параметры TTL/таймаутов/лимитов.
 	•	Описаны observability-аспекты: ключевые метрики (подписки создано, confirm rate, email send failures, cache hit rate), логи/трейсы.
 	•	Добавлены заметки по эксплуатации: rate limiting правила, ограничения внешнего API, диагностика типовых ошибок.
-"""
 
-DOD_V2 = """
+
+### DoD v2.0
+
 DoD v2.0 — WeatherService (REST API: Подписки и Уведомления)
 
 Code (код)
@@ -466,10 +307,10 @@ Deployment (деплой)
 	•	Конфигурация окружений обновлена: секреты в vault/secret store, значения TTL=600s, настройки rate limiter.
 	•	Деплой в staging выполнен и подтверждён smoke-тестами: /health, /subscribe, /confirm (с моками или тестовыми провайдерами).
 	•	Наблюдаемость включена: дашборды/алерты активны, базовые SLO (например, p95 latency, error rate) в норме после релиза.
-"""
 
-# Задание 4: Тест-план v2 (Классифицированный)
-TEST_PLAN_V2 = """
+
+### Test Plan v2
+
 | ID | Тип | Компонент | Описание | Предусловия | Шаги | Ожидаемый результат |
 |---|---|---|---|---|---|---|
 | TC-001 | Unit | API | Валидация email: корректный формат принимается | Нет | 1) Вызвать валидатор email с `user@example.com` | Валидатор возвращает OK, ошибок нет |
@@ -492,10 +333,10 @@ TEST_PLAN_V2 = """
 | TC-018 | E2E | API + PG + Mailer(mock) | Полный флоу: subscribe → получение ссылки → confirm → статус active | Mailer mock перехватывает письма; PG/Redis подняты; OWM валиден | 1) POST `/subscribe` 2) Извлечь confirm link из письма 3) Перейти по ссылке/вызвать `/confirm` 4) Проверить БД | Subscribe возвращает 201, confirm возвращает 200, в БД статус `active` для этой подписки |
 | TC-019 | E2E | API + RL | Rate limiter: серия запросов к `/subscribe` блокируется после лимита | RL включён и настроен для тестового ключа/IP | 1) Отправить серию POST `/subscribe` (N+1) с различными email | До лимита ответы успешны/валидны, затем 429 (или согласованный код), сервис остаётся доступным |
 | TC-020 | E2E | API + Redis | Повторный запрос на подписку для другого email использует кэш погоды (если применимо) | Redis пуст; OWM mock считает вызовы; city один и тот же | 1) POST `/subscribe` для `userA` 2) POST `/subscribe` для `userB` с тем же city в течение 10 мин 3) Проверить счётчик OWM | Второй запрос возвращает погоду без дополнительного вызова OWM (cache hit), TTL не превышает 600 секунд |
-"""
 
-# Задание 5: Улучшенный Functional Delivery v2.0
-FUNCTIONAL_DELIVERY_V2 = """
+
+### Functional Delivery v2.0
+
 Улучшенные Jira-тикеты — WeatherService v1.0 (Подписки и уведомления)
 
 Оценки даны в Story Points (SP). Зависимости указаны как ссылки на тикеты из списка.
@@ -821,104 +662,15 @@ Estimate: 8 SP
 	•	Low: SUB-003, SUB-004 (каналы push/sms — расширения)
 
 Если нужна “чистая” v1.0 только для утренней email-сводки, практический MVP путь: SUB-001, SUB-002, SUB-006, SUB-008, а SUB-007 как “must-have” перед релизом в прод.
-"""
 
-# =================================================================================================
-# 4. ДОМАШНЕЕ ЗАДАНИЕ (опционально)
-# =================================================================================================
 
-# Улучшение Event Storming v2.0 (опционально)
-HOMEWORK_EVENT_STORMING_V2 = """
-TODO: (Опционально) Улучшенный Event Storming с использованием R.C.T.F.
-Добавьте больше событий, уточните команды и акторов.
-"""
+## 3. Домашнее задание
 
-# Улучшение Roadmap v2.0 (опционально)
-HOMEWORK_ROADMAP_V2 = """
-TODO: (Опционально) Улучшенный Roadmap с использованием R.C.T.F.
-Детализируйте версии, добавьте метрики успеха для каждой версии.
-"""
+## 4. Рефлексия
 
-# Chain of Thought (многоэтапный промптинг)
-HOMEWORK_MULTIPROMPT_TASK = """
-TODO: Опишите задачу, которую вы разбили на шаги
-"""
-
-HOMEWORK_MULTIPROMPT_STEPS = """
-TODO: Список шагов (3-5 штук)
-"""
-
-HOMEWORK_MULTIPROMPT_SEQUENCE = """
-TODO: Последовательность промптов с результатами каждого шага
-"""
-
-HOMEWORK_MULTIPROMPT_RESULT = """
-TODO: Финальный результат после всех шагов
-"""
-
-# =================================================================================================
-# 5. РЕФЛЕКСИЯ
-# =================================================================================================
-REFLECTION = {
-    "before_after": """
+**Before/After:** 
     TODO: Сравните результаты "простого" промпта из Практики 1 и R.C.T.F. из Практики 2.
     В чем главная разница?
-    """,
     
-    "hardest_part": "TODO: Какая часть R.C.T.F. дается сложнее всего (Role, Context...)?",
-}
 
-# =================================================================================================
-# ЭКСПОРТ
-# =================================================================================================
-def export_report():
-    if "TODO" in STUDENT_INFO["full_name"]:
-        print("❌ ОШИБКА: Заполните информацию о студенте.")
-        return
-
-    report = f"# Отчет по Практике 2: {STUDENT_INFO['full_name']}\n\n"
-    report += "## 1. Анализ промптов R.C.T.F.\n\n"
-    
-    if not PROMPT_LOGS:
-        report += "⚠️ Журнал пуст!\n"
-    
-    for log in PROMPT_LOGS:
-        report += f"### {log.task_name}\n"
-        report += f"**Role:** {log.role}\n"
-        report += f"**Context:** {log.context}\n"
-        report += f"**Task:** {log.task}\n"
-        report += f"**Format:** {log.format}\n"
-        report += f"**Результат:** {log.result}\n"
-        report += "---\n"
-
-    report += "## 2. Улучшенные артефакты\n\n"
-    report += "### Mermaid v2\n```mermaid\n" + MERMAID_V2 + "\n```\n\n"
-    report += "### Gherkin Scenarios\n```gherkin\n" + GHERKIN_SCENARIOS + "\n```\n\n"
-    report += "### DoR v2.0\n" + DOR_V2 + "\n\n"
-    report += "### DoD v2.0\n" + DOD_V2 + "\n\n"
-    report += "### Test Plan v2\n" + TEST_PLAN_V2 + "\n\n"
-    report += "### Functional Delivery v2.0\n" + FUNCTIONAL_DELIVERY_V2 + "\n\n"
-
-    report += "## 3. Домашнее задание\n\n"
-    if HOMEWORK_EVENT_STORMING_V2 and "TODO" not in HOMEWORK_EVENT_STORMING_V2:
-        report += "### Event Storming v2.0\n" + HOMEWORK_EVENT_STORMING_V2 + "\n\n"
-    if HOMEWORK_ROADMAP_V2 and "TODO" not in HOMEWORK_ROADMAP_V2:
-        report += "### Roadmap v2.0\n" + HOMEWORK_ROADMAP_V2 + "\n\n"
-    if HOMEWORK_MULTIPROMPT_TASK and "TODO" not in HOMEWORK_MULTIPROMPT_TASK:
-        report += "### Chain of Thought\n"
-        report += "**Задача:** " + HOMEWORK_MULTIPROMPT_TASK + "\n\n"
-        report += "**Шаги:** " + HOMEWORK_MULTIPROMPT_STEPS + "\n\n"
-        report += "**Последовательность:** " + HOMEWORK_MULTIPROMPT_SEQUENCE + "\n\n"
-        report += "**Результат:** " + HOMEWORK_MULTIPROMPT_RESULT + "\n\n"
-    
-    report += "## 4. Рефлексия\n\n"
-    report += f"**Before/After:** {REFLECTION['before_after']}\n\n"
-    report += f"**Сложности:** {REFLECTION['hardest_part']}\n"
-
-    os.makedirs("artifacts", exist_ok=True)
-    with open("artifacts/report_p2.md", "w", encoding="utf-8") as f:
-        f.write(report)
-    print(f"✅ Отчет успешно сгенерирован: artifacts/report_p2.md")
-
-if __name__ == "__main__":
-    export_report()
+**Сложности:** TODO: Какая часть R.C.T.F. дается сложнее всего (Role, Context...)?
