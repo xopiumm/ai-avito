@@ -17,13 +17,6 @@
 - Установка: `npm install` и `npm start`
 - Полный контроль над настройками
 
-Настройки:
-
-- <https://litellm.data-light.ru>
-- `openai/gpt-5-mini`
-
-![settings](./slides/images/settings.png)
-
 ---
 
 ## Цель практики

@@ -1,117 +1,13 @@
-import json
-import os
-from typing import List, Dict, Optional
+# Отчет по Практике 1: Дима Милана
 
-"""
-ПРАКТИКА 1: ПЛАНИРОВАНИЕ РАЗРАБОТКИ С ИСПОЛЬЗОВАНИЕМ AI
-Курс: AI-инструменты в жизни инженера (ИТМО)
-Проект: "PythonNotify" - Веб-сервис для уведомлений о погоде (REST API)
+**Группа:** M3305
+**Участники:** Дима Милана
+**Дата:** 2024-02-13
 
-ИНСТРУКЦИЯ:
-1. Заполните секции, отмеченные "TODO".
-2. Записывайте все ваши промпты в список PROMPT_LOGS.
-3. Запускайте этот файл для проверки прогресса и генерации отчета.
-"""
+## 1. Бизнес-артефакты и планирование
 
-# =================================================================================================
-# 1. ИНФОРМАЦИЯ О СТУДЕНТЕ И ГРУППЕ
-# =================================================================================================
-STUDENT_INFO = {
-    "full_name": "Дима Милана",
-    "group_number": "M3305",  
-    "members": "Дима Милана",
-    "date": "2024-02-13"
-}
+### Event storming (light)
 
-# =================================================================================================
-# 2. ЖУРНАЛ РАБОТЫ С AI (PROMPT LOG)
-# =================================================================================================
-class PromptLog:
-    def __init__(self, task_id: str, prompt: str, model: str, result_summary: str, refinement: str = ""):
-        self.task_id = task_id
-        self.prompt = prompt
-        self.model = model
-        self.result_summary = result_summary
-        self.refinement = refinement
-
-    def to_dict(self):
-        return self.__dict__
-
-PROMPT_LOGS: List[PromptLog] = [
-    PromptLog(
-        task_id="1.0.1 Event Storming", 
-        prompt="WeatherService - REST API сервис уведомлений о погоде: - подписка на города и управление подписками; - получение текущей погоды/прогноза из внешнего Weather API; - клиенты: веб/мобильные приложения (опционально: Telegram Bot). Проведи Event stroming: 1) перечисли 5-7 events 2) перечисли 3–5 commands 3) перечисли 3–5 actors",
-        model="ChatGPT-5-mini",
-        result_summary="Сгенерировался список из 6 events, 4 commands, 4 actors + 1 дополнительный."
-    ), 
-    PromptLog(
-        task_id="1.0.2 CJM",
-        prompt="Собери CJM из 6-8 шагов для сценария \"подписка → уведомления\" в WeatherService. Для каждого этапа пропиши эмоции и pain ponts.",
-        model="ChatGPT-5-mini",
-        result_summary="Сгенерировался CJM из 7 шагов, каждый шаг включает описание действий пользователя, эмоций и pain points, а также возможности для улучшения опыта."
-    ),
-    PromptLog(
-        task_id="1.0.3 Roadmap",
-        prompt="Предложи roadmap по версиям v1.0/v1.1/v2.0: что войдёт в каждую версию и почему.",
-        model="ChatGPT-5-mini",
-        result_summary="Сгенерировался roadmap с 3 версиями"
-    ),
-    PromptLog(
-        task_id="1.0.4 Epics",
-        prompt="Предложи 4–6 epics для проекта WeatherService.",
-        model="ChatGPT-5-mini",
-        result_summary="Сгенерировался список из 6 Epics."
-    ),
-    PromptLog(
-        task_id="1.1 User Stories",
-        prompt="Предложи 5–7 user stories для проекта WeatherService.",
-        model="ChatGPT-5-mini",
-        result_summary="Сгенерировался список из 7 user stories"
-    ),
-    PromptLog(
-        task_id="1.2 DoR",
-        prompt="Для WeatherService подготовь список критериев DoR на 4-6 пунктов",
-        model="ChatGPT-5-mini",
-        result_summary="Сгенерировался чек-лист DoR из 6 пунктов"
-    ),
-    PromptLog(
-        task_id="2.1 Архитектура - компоненты",
-        prompt="Составь для WeatherService краткий ADR с описанием контекста, решений альтернатив и последствий",
-        model="ChatGPT-5-mini",
-        result_summary="Сгенерировался ADR с описанием контекста, решений, альтернатив и последствий"
-    ),
-    PromptLog(
-        task_id="2.2 Mermaid",
-        prompt="На основе принятых архитектурных решений составь Mermaid диаграмму с компонентами и связями",
-        model="ChatGPT-5-mini",
-        result_summary="Сгенерировалась диаграмма с компонентами и их связями"
-    ),
-    PromptLog(
-        task_id="3.1 DoD",
-        prompt="На основе полученных ранее артефактов составь список критериев DoD из 4-6 пунктов",
-        model="ChatGPT-5-mini",
-        result_summary="Сгенерировался DoD из 5 пунктов"
-    ),
-    PromptLog(
-        task_id="3.2 Test Plan",
-        prompt="Для WeatherService составь план тестирования минимум из 8 пунктов. Необходимо покрыть как позитивные, так и негативные  сценарии",
-        model="ChatGPT-5-mini",
-        result_summary="Сгенерировался план тестирования"
-    ),
-    PromptLog(
-        task_id="3.3 Jira",
-        prompt="Раздели работу на 6-10 Jira тикетов. Каждый тикет должен иметь Title, Description, Acceptance Criteria, Test cases, Dependencies/Notes",
-        model="ChatGPT-5-mini",
-        result_summary="Сгенерировался список из 8 Jira тикетов"  
-    )
-]
-
-# =================================================================================================
-# 3. РЕЗУЛЬТАТЫ (АРТЕФАКТЫ)
-# =================================================================================================
-
-# Задание 1 (часть 1): Лёгкий event storming (события/акторы/команды)
-EVENT_STORMING = """
 TODO: Вставьте результат от AI.
 
 Подсказка по формату:
@@ -180,10 +76,10 @@ TODO: Вставьте результат от AI.
 Источник: delivery worker / внешний push/email/telegram provider
 Последствия: обновить статус, при ошибке запустить retry или пометить permanent-failure; метрики и алерты на SLA
 Проверки: id совпадает, таймстемп в пределах ожиданий
-"""
 
-# Задание 1 (часть 2): CJM (Customer Journey Map) / основной пользовательский путь
-CJM = """
+
+### CJM
+
 # CJM: Подписка → Уведомления (WeatherService)
 
 Файл содержит Customer Journey Map (CJM) из 7 шагов для сценария подписка → уведомления в WeatherService.
@@ -256,10 +152,10 @@ flowchart LR
 
 ## Примечание
 Этот файл предназначен как первый рабочий вариант CJM. Дальнейшие шаги: уточнить у PO приоритет каналов, согласовать текст уведомлений и подготовить требования для реализации (events, API, retry policy, TTL, SLA).
-"""
 
-# Задание 1 (часть 3): Roadmap по версиям (v1.0/v1.1/v2.0)
-ROADMAP = """
+
+### Roadmap
+
 ## Roadmap: версии и обоснование
 
 v1.0 — Minimum Lovable Product (MLP)
@@ -294,10 +190,10 @@ v2.0 — Персонализация и расширенные сценарии
   - Создание высокой ценности для удержания пользователей через персонализированные и релевантные нотификации
   - Подготовка платформы для коммерческих возможностей (премиум-функции, таргетированные советы)
 
-"""
 
-# Задание 1 (часть 4): Epics
-EPICS = """
+
+### Epics
+
 ## Epics (4–6)
 1. Epic: Subscription Core
    - Описание: Механика подписки и хранения предпочтений пользователя (канал, частота, локации).
@@ -333,11 +229,10 @@ EPICS = """
 - v1.0: Основной функционал подписки, подтверждение, базовая доставка.
 - v1.1: Увеличение надежности и UX (тестовые уведомления, SMS, метрики).
 - v2.0: Персонализация и расширенные сценарии.
-"""
 
-# Задание 1.1: User Stories
-# Вставьте сюда финальный список User Stories для REST API
-USER_STORIES = """
+
+### User Stories
+
 1. Story 1 — Подписка на утреннюю сводку (v1.0)
    - Как пользователь, я хочу подписаться на ежедневную утреннюю сводку по email для моей локации, чтобы получать краткий прогноз перед выходом из дома.
    - Acceptance criteria:
@@ -386,10 +281,10 @@ USER_STORIES = """
      - В каждом уведомлении есть ссылка/инструкция для отписки (email и SMS).
      - Система хранит и отображает историю согласий и отписок.
      - Есть API для удаления контактных данных по запросу.
-"""
 
-# Задание 1.2: Definition of Ready (DoR)
-DEFINITION_OF_READY = """
+
+### Definition of Ready (DoR)
+
 # DoR (Definition of Ready) — Подписки и Уведомления (WeatherService)
 
 Ниже 6 пунктов DoR, которые нужно выполнить, прежде чем брать задачу в спринт.
@@ -417,19 +312,21 @@ DEFINITION_OF_READY = """
 6. Соответствие и безопасность
    - Модель согласий (consent) определена и хранение контактов соответствует политике конфиденциальности.
    - Определён процесс обработки DSR (удаление/анонимизация) и требования по шифрованию.
-"""
 
-# Задание 2 (часть 1): Компоненты системы
-ARCHITECTURE_COMPONENTS = """
+
+## 2. Архитектура
+
+### Компоненты
+
 TODO: Список компонентов
 1. FastAPI Backend (REST API)
 2. PostgreSQL Database (подписки пользователей)
 3. OpenWeatherMap API (данные о погоде)
 4. Client Apps (веб/мобильные приложения)
-"""
 
-# Задание 2 (часть 2): ADR (Architecture Decision Record)
-ADR = """
+
+### ADR
+
 # ADR-001: Архитектурное решение для подписок и доставки уведомлений — WeatherService
 
 Дата: 2026-02-13
@@ -496,10 +393,11 @@ E. Отказ от DLQ (удалять/игнорировать недостав
 - Инструментировать SLI/метрики и создать первые дашборды (delivery_rate, p95 latency, DLQ count).
 - Реализовать idempotency и DLQ-формат с необходимыми метаданными.
 
-"""
 
-# Задание 2 (часть 3): Mermaid код (архитектурная схема REST API сервиса)
-MERMAID_CODE = """
+
+### Mermaid
+```mermaid
+
 # Architecture diagram (Mermaid) — Подписки и Уведомления (WeatherService)
 
 Ниже диаграмма компонентов и связей, основанная на принятом архитектурном решении (async pipeline, queue, dispatcher, provider adapters).
@@ -512,10 +410,12 @@ flowchart LR
 
   UI -->|REST / GraphQL| API[API Gateway]
   API --> Auth[Auth Service]
-  API --> SubSvc[Subscription Service\n(Postgres)]
+  API --> SubSvc[Subscription Service
+(Postgres)]
   API --> AdminUI[Admin / UX]
 
-  Rules[Rules Engine / Scheduler] -->|plan/trigger| EventBus((Message Queue\nKafka / Rabbit / SQS))
+  Rules[Rules Engine / Scheduler] -->|plan/trigger| EventBus((Message Queue
+Kafka / Rabbit / SQS))
   SubSvc -->|enqueue| EventBus
 
   EventBus --> Dispatcher[Dispatcher / Worker Pool]
@@ -552,15 +452,18 @@ flowchart LR
 - Provider Adapters — абстракция над внешними почтовыми/SMS/push сервисами.
 - DLQ — хранилище сообщений после исчерпания retry-политики.
 - Observability — метрики, дашборды и трассировка (tracing headers).
-"""
 
-# Опционально: ссылка/путь на изображение схемы (если сохраняли PNG в репозиторий)
-MERMAID_IMAGE_URL = """
+```
 
-"""
+### Ссылка на схему
 
-# Задание 3 (часть 1): Definition of Done (DoD)
-DEFINITION_OF_DONE = """
+
+
+
+## 3. Качество
+
+### Definition of Done
+
 # DoD (Definition of Done) — Подписки и Уведомления (WeatherService)
 
 Список из 5 пунктов, необходимых для пометки фичи как готовой к релизу.
@@ -584,10 +487,10 @@ DEFINITION_OF_DONE = """
 5. Документация и handoff
    - Обновлён CJM и roadmap в `plans/cjm.md`.
    - Передача команде QA и разработчикам: checklist тест-кейсов и agenda для handoff-meeting.
-"""
 
-# Задание 3 (часть 2): План тестирования (позитивные + негативные сценарии)
-TEST_PLAN = """
+
+### План тестирования
+
 # Testing Plan — Подписки и Уведомления (WeatherService)
 
 Минимум 8 тест-кейсов, покрывающих позитивные и негативные сценарии, а также e2e и нагрузочные проверки.
@@ -627,10 +530,10 @@ TEST_PLAN = """
 Дополнительные тесты:
 - TC-09: Webhook provider: обработка статусов delivered/failed
 - TC-10: Idempotency: повторный POST с тем же idempotency_key не создаёт дубликат
-"""
 
-# Задание 3 (часть 3): Functional Delivery (нарезка задач «по функции» в стиле Jira-тикетов)
-FUNCTIONAL_DELIVERY = """
+
+### Functional Delivery (Jira-тикеты)
+
 # Jira tickets (8) — WeatherService: Подписки и Уведомления
 
 Ниже 8 тикетов, готовых для импорта в Jira. Каждый тикет содержит Title, Description, Acceptance Criteria, Test cases и Dependencies/Notes.
@@ -766,102 +669,95 @@ Dependencies/Notes:
   - Согласовать с legal/GDPR командой формат хранения и retention policy
 
 ---
-"""
 
-# Домашнее задание (обязательно): LLD по одному Epic
-HOMEWORK_LLD = """
+
+## 4. Домашнее задание
+
+### LLD по Epic
+
 TODO: Выберите один Epic и сделайте LLD.
 
 Допустимые форматы:
 - Markdown (описание модулей/эндпоинтов/контрактов)
 - схема (Mermaid/Draw.io) + пояснение
-"""
 
-# Домашнее задание (обязательно): улучшить DoR/DoD до версии 2.0
-HOMEWORK_DOR_V2 = """
+
+### DoR v2.0
+
 TODO: Улучшите DoR до версии 2.0 (что добавили и почему).
-"""
 
-HOMEWORK_DOD_V2 = """
+
+### DoD v2.0
+
 TODO: Улучшите DoD до версии 2.0 (что добавили и почему).
-"""
 
-# Со звёздочкой (*): Edge Cases (если хотите дополнительно потренироваться в QA-мышлении)
-EDGE_CASES = """
+
+### Edge Cases (*)
+
 TODO: (Опционально) 10 граничных случаев для v1.0/v1.1.
-"""
 
-# =================================================================================================
-# 4. РЕФЛЕКСИЯ
-# =================================================================================================
-REFLECTION = {
-    "key_takeaway": """
-    TODO: Главный инсайт практики.
-    """,
-    
-    "tool_critique": """
-    TODO: Что AI сделал плохо? Где он ошибся в планировании?
-    """,
-    
-    "time_saved_estimate": "TODO: Оценка времени (например, 'Сэкономил 1 час')",
-}
 
-# =================================================================================================
-# ЭКСПОРТ (НЕ МЕНЯЙТЕ КОД НИЖЕ)
-# =================================================================================================
-def export_report():
-    if "TODO" in STUDENT_INFO["full_name"]:
-        print("❌ ОШИБКА: Заполните секцию 1 (Информация о студенте)")
-        return
+## 5. Журнал промптов
 
-    report = f"# Отчет по Практике 1: {STUDENT_INFO['full_name']}\n\n"
-    report += f"**Группа:** {STUDENT_INFO['group_number']}\n"
-    report += f"**Участники:** {STUDENT_INFO['members']}\n"
-    report += f"**Дата:** {STUDENT_INFO['date']}\n\n"
-    
-    report += "## 1. Бизнес-артефакты и планирование\n\n"
-    report += "### Event storming (light)\n" + EVENT_STORMING + "\n\n"
-    report += "### CJM\n" + CJM + "\n\n"
-    report += "### Roadmap\n" + ROADMAP + "\n\n"
-    report += "### Epics\n" + EPICS + "\n\n"
-    report += "### User Stories\n" + USER_STORIES + "\n\n"
-    report += "### Definition of Ready (DoR)\n" + DEFINITION_OF_READY + "\n\n"
-    
-    report += "## 2. Архитектура\n\n"
-    report += "### Компоненты\n" + ARCHITECTURE_COMPONENTS + "\n\n"
-    report += "### ADR\n" + ADR + "\n\n"
-    report += "### Mermaid\n```mermaid\n" + MERMAID_CODE + "\n```\n\n"
-    report += "### Ссылка на схему\n" + MERMAID_IMAGE_URL + "\n\n"
-    
-    report += "## 3. Качество\n\n"
-    report += "### Definition of Done\n" + DEFINITION_OF_DONE + "\n\n"
-    report += "### План тестирования\n" + TEST_PLAN + "\n\n"
-    report += "### Functional Delivery (Jira-тикеты)\n" + FUNCTIONAL_DELIVERY + "\n\n"
+**Задача:** 1.0.1 Event Storming (ChatGPT-5-mini)
+> WeatherService - REST API сервис уведомлений о погоде: - подписка на города и управление подписками; - получение текущей погоды/прогноза из внешнего Weather API; - клиенты: веб/мобильные приложения (опционально: Telegram Bot). Проведи Event stroming: 1) перечисли 5-7 events 2) перечисли 3–5 commands 3) перечисли 3–5 actors
 
-    report += "## 4. Домашнее задание\n\n"
-    report += "### LLD по Epic\n" + HOMEWORK_LLD + "\n\n"
-    report += "### DoR v2.0\n" + HOMEWORK_DOR_V2 + "\n\n"
-    report += "### DoD v2.0\n" + HOMEWORK_DOD_V2 + "\n\n"
-    report += "### Edge Cases (*)\n" + EDGE_CASES + "\n\n"
+*Результат:* Сгенерировался список из 6 events, 4 commands, 4 actors + 1 дополнительный.
+---
+**Задача:** 1.0.2 CJM (ChatGPT-5-mini)
+> Собери CJM из 6-8 шагов для сценария "подписка → уведомления" в WeatherService. Для каждого этапа пропиши эмоции и pain ponts.
 
-    report += "## 5. Журнал промптов\n\n"
-    for log in PROMPT_LOGS:
-        report += f"**Задача:** {log.task_id} ({log.model})\n"
-        report += f"> {log.prompt}\n\n"
-        report += f"*Результат:* {log.result_summary}\n"
-        if log.refinement:
-            report += f"*Улучшение:* {log.refinement}\n"
-        report += "---\n"
+*Результат:* Сгенерировался CJM из 7 шагов, каждый шаг включает описание действий пользователя, эмоций и pain points, а также возможности для улучшения опыта.
+---
+**Задача:** 1.0.3 Roadmap (ChatGPT-5-mini)
+> Предложи roadmap по версиям v1.0/v1.1/v2.0: что войдёт в каждую версию и почему.
 
-    report += "\n## 6. Рефлексия\n\n"
-    report += f"**Инсайт:** {REFLECTION['key_takeaway'].strip()}\n\n"
-    report += f"**Критика AI:** {REFLECTION['tool_critique'].strip()}\n\n"
+*Результат:* Сгенерировался roadmap с 3 версиями
+---
+**Задача:** 1.0.4 Epics (ChatGPT-5-mini)
+> Предложи 4–6 epics для проекта WeatherService.
 
-    os.makedirs("artifacts", exist_ok=True)
-    with open("artifacts/report_p1.md", "w", encoding="utf-8") as f:
-        f.write(report)
-    
-    print(f"✅ Отчет успешно сгенерирован: artifacts/report_p1.md")
+*Результат:* Сгенерировался список из 6 Epics.
+---
+**Задача:** 1.1 User Stories (ChatGPT-5-mini)
+> Предложи 5–7 user stories для проекта WeatherService.
 
-if __name__ == "__main__":
-    export_report()
+*Результат:* Сгенерировался список из 7 user stories
+---
+**Задача:** 1.2 DoR (ChatGPT-5-mini)
+> Для WeatherService подготовь список критериев DoR на 4-6 пунктов
+
+*Результат:* Сгенерировался чек-лист DoR из 6 пунктов
+---
+**Задача:** 2.1 Архитектура - компоненты (ChatGPT-5-mini)
+> Составь для WeatherService краткий ADR с описанием контекста, решений альтернатив и последствий
+
+*Результат:* Сгенерировался ADR с описанием контекста, решений, альтернатив и последствий
+---
+**Задача:** 2.2 Mermaid (ChatGPT-5-mini)
+> На основе принятых архитектурных решений составь Mermaid диаграмму с компонентами и связями
+
+*Результат:* Сгенерировалась диаграмма с компонентами и их связями
+---
+**Задача:** 3.1 DoD (ChatGPT-5-mini)
+> На основе полученных ранее артефактов составь список критериев DoD из 4-6 пунктов
+
+*Результат:* Сгенерировался DoD из 5 пунктов
+---
+**Задача:** 3.2 Test Plan (ChatGPT-5-mini)
+> Для WeatherService составь план тестирования минимум из 8 пунктов. Необходимо покрыть как позитивные, так и негативные  сценарии
+
+*Результат:* Сгенерировался план тестирования
+---
+**Задача:** 3.3 Jira (ChatGPT-5-mini)
+> Раздели работу на 6-10 Jira тикетов. Каждый тикет должен иметь Title, Description, Acceptance Criteria, Test cases, Dependencies/Notes
+
+*Результат:* Сгенерировался список из 8 Jira тикетов
+---
+
+## 6. Рефлексия
+
+**Инсайт:** TODO: Главный инсайт практики.
+
+**Критика AI:** TODO: Что AI сделал плохо? Где он ошибся в планировании?
+
