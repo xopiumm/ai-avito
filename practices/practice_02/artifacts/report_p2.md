@@ -104,6 +104,88 @@ graph TB
 **Format:** Структурированный список тикетов в Markdown. Каждый тикет должен содержать: - Title (название) - Description (описание задачи) - Acceptance Criteria (детальные в формате Given/When/Then) - Test Cases (детальные тест-кейсы) - Dependencies (зависимости от других тикетов) - Priority (High/Medium/Low) - Estimate (story points или часы)
 **Результат:** Сгенерировал улучшенные Jira-тикеты
 ---
+### hw Event Storming 2.0
+**Role:** Действуй как Senior Product Manager с 8 летним опытом в коммерческой разработке
+**Context:** 
+        Мы проектируем Weather Service REST API для уведомлений о погоде. Ранее мы записали результат нашего Event Storming
+Actors
+
+End User (Web/Mobile) — управляет подписками через REST API, получает in-app/push/email уведомления
+External Weather API (Provider) — даёт прогнозы/алерты; источник WeatherForecastUpdated
+Scheduler / Orchestrator — планировщик задач (cron, cloud scheduler) вызывает RefreshForecast и запускает периодические jobs
+Delivery Worker / Notification Service — отвечает за ProcessNotificationQueue и интеграцию с внешними каналами (FCM/APNs, SMTP, Telegram Bot API)
+Дополнительный актор: Telegram Bot (опционально) — двунаправленный: принимает Subscribe/Unsubscribe и доставляет сообщения
+Commands
+
+SubscribeToCity От кого: клиент (web/mobile) или Bot Что делает: создаёт подписку и эмитит UserSubscribedToCity Параметры: user_id, city_id, channels, preferences Ответ: subscription_id / error
+
+UnsubscribeFromCity От кого: клиент / Bot Что делает: помечает подписку неактивной и эмитит UserUnsubscribedFromCity Параметры: user_id, city_id, channels(optional)
+
+RefreshForecast От кого: scheduler / operator Что делает: запрашивает прогноз у внешнего Weather API для указанного набора городов; эмитит WeatherForecastUpdated Параметры: city_id(s) or batch, provider_id, force_flag
+
+SendNotification / ProcessNotificationQueue От кого: delivery worker / orchestration Что делает: берёт NotificationScheduled из очереди и пытается доставить по каналам; эмитит NotificationDelivered или NotificationFailed Параметры: notification_id, attempt_number
+
+Domain Events
+
+UserSubscribedToCity Поля: user_id, city_id, channels [telegram,push,email,in-app], preferences {thresholds,quiet_hours}, created_at, source Источник: REST API (клиент web/mobile), Telegram Bot Последствия: создать запись подписки в БД; опубликовать событие для воркера ScheduleNotification Проверки: валидность user_id и city_id, права доступа, дублирующая подписка
+
+UserUnsubscribedFromCity Поля: user_id, city_id, channels_removed, removed_at, source Источник: REST API / Bot Последствия: снять подписку в БД; отменить запланированные уведомления; логировать изменение Проверки: наличие активной подписки, подтверждение владельца
+
+WeatherForecastUpdated Поля: city_id, provider_id, fetched_at, forecast_version, forecast_summary, forecast_payload (raw JSON), ttl Источник: интеграция с внешним Weather API (periodic pull / webhook) Последствия: сохранить snapshot прогноза; запустить правила сравнения (diff) для генерации Alarm/Alert событий; обновить кеш Проверки: подпись/валидность ответа провайдера, таймстемп, процент недостающих полей
+
+WeatherAlertTriggered Поля: alert_id, city_id, alert_type (heavy_rain,storm,temp_drop,frost), severity, observed_at, details, trigger_reason Источник: правило сравнения (внутренний сервис) при получении WeatherForecastUpdated или по push от провайдера Последствия: создать NotificationScheduled для подписанных пользователей; создать Audit запись Проверки: соответствие порогам пользователя, окно тихих часов, дублирование одного алерта
+
+NotificationScheduled Поля: notification_id, user_id, city_id, channels, scheduled_at, payload_summary, status (scheduled) Источник: генератор уведомлений (в ответ на WeatherAlertTriggered или по расписанию) Последствия: поместить задачу в очередь доставки (broker); отслеживать статус доставки Проверки: доступность каналов доставки для user_id, формат payload
+
+NotificationDelivered / NotificationFailed Поля: notification_id, user_id, channel, delivered_at / failed_at, provider_msg_id, error_code, retry_count Источник: delivery worker / внешний push/email/telegram provider Последствия: обновить статус, при ошибке запустить retry или пометить permanent-failure; метрики и алерты на SLA Проверки: id совпадает, таймстемп в пределах ожиданий
+        
+**Task:** Проанализируй Actors, Commands и Domain Events. Создай улучшенную версию файла
+**Format:** Раздели ответ на блоки Actors, Commands и Domain Events, для каждого пункта пиши подробные объяснения 
+**Результат:** Сгенерирован обновленный файл результат Event Storming
+---
+### hw Roadmap 2.0
+**Role:** Действуй как Senior Product Manager с 8 летним опытом в коммерческой разработке
+**Context:** 
+        Мы проектируем Weather Service REST API для уведомлений о погоде. У нас уже подготовлена первая версия Roadmap
+Roadmap: версии и обоснование
+
+v1.0 — Minimum Lovable Product (MLP)
+
+Что включено:
+Базовая подписка через email и push (в приложении)
+Простая форма подписки (email + выбор типа уведомлений: ежедневная сводка / предупреждения)
+Подтверждение email (ссылка)
+Отправка базовых уведомлений: утренняя сводка и предупреждение о сильной погоде
+Метрики: подтверждения подписки, доставляемость email, CTR уведомлений
+Почему:
+Быстрая проверка спроса и ценности уведомлений при минимальном объёме разработки
+Email и встроенные push покрывают большинство пользователей без сложных интеграций
+v1.1 — Улучшение качества доставки и управление подпиской
+
+Что включено:
+Добавление SMS как опционального канала для критических предупреждений (при интеграции провайдера)
+Тестовое уведомление и индикатор статуса подписки
+Простейшая панель управления подписками в профиле (вкл/выкл, выбор каналов)
+Retry policy для пушей и email, мониторинг задержек
+Почему:
+Повышение надежности и доверия пользователей (тестовое уведомление, статус)
+SMS — важен для критических оповещений и тех, кто не пользуется приложением
+v2.0 — Персонализация и расширенные сценарии
+
+Что включено:
+Гибкие правила триггеров (custom thresholds по ветру/осадкам/температуре)
+Геофенсинг и уведомления по привязанным локациям
+Rich notifications: картинка, CTA, период действия, подробная карточка риска
+История уведомлений и аналитика пользовательских реакций
+SLA/SLI формализация: целевые показатели доставки и latency
+Почему:
+Создание высокой ценности для удержания пользователей через персонализированные и релевантные нотификации
+Подготовка платформы для коммерческих возможностей (премиум-функции, таргетированные советы)
+        
+**Task:** Детализируй версии, улучши их и добавь метрики успеха для каждой версии
+**Format:** Выведи подробное описание, раздели ответ по версиям 
+**Результат:** Сгенерирована обновленная версия Roadmap 2.0
+---
 ## 2. Улучшенные артефакты
 
 ### Mermaid v2
@@ -666,11 +748,1101 @@ Estimate: 8 SP
 
 ## 3. Домашнее задание
 
+### Event Storming v2.0
+
+Actors
+
+1) End User (Web/Mobile)
+
+Роль: управляет подписками и настройками уведомлений, получает уведомления в каналах (in-app/push/email/telegram).
+Границы ответственности:
+	•	Создание/изменение/удаление подписок и пользовательских правил (пороги, типы алертов, quiet hours, язык, таймзона).
+	•	Управление подтверждениями каналов (например, email opt-in / подтверждение Telegram).
+	•	Получение истории уведомлений и статусов доставок (read-only).
+Критичные моменты продукта:
+	•	Идемпотентность UX: повторный клик “подписаться” не должен создавать дубликаты.
+	•	Прозрачность: пользователь должен понимать “почему я получил уведомление” (trigger_reason, какие пороги сработали).
+	•	Контроль частоты: настройки “не чаще N раз в час/день”, чтобы избежать спама.
+
+⸻
+
+2) External Weather API (Provider)
+
+Роль: источник прогнозов и/или алертов (pull и/или webhook).
+Границы ответственности:
+	•	Поставляет исходные данные, которые мы не считаем доменной истиной, а рассматриваем как входной сигнал.
+	•	Может иметь ограничения по квотам, задержкам, точности, формату полей.
+Критичные моменты архитектуры:
+	•	Версионирование и дедупликация: один и тот же прогноз может приходить повторно (webhook retries) → нужен provider_event_id / forecast_hash.
+	•	Надёжность: частичная недоступность провайдера не должна ломать пользовательский SLA (кэш, last-known-good, деградация).
+
+⸻
+
+3) Scheduler / Orchestrator
+
+Роль: триггерит фоновую обработку: обновление прогнозов, пересчёт правил, “тихие часы” отложенную отправку, ретраи.
+Границы ответственности:
+	•	Запускает jobs по расписанию и/или шардит города на батчи.
+	•	Может быть внешним (cloud scheduler) или внутренним orchestrator’ом.
+Критичные моменты:
+	•	Backpressure/лимиты: при росте городов и подписок нужен контроль параллелизма и rate-limit к провайдеру.
+	•	Ретраи и дедлайны: повторные RefreshForecast не должны множить события.
+
+⸻
+
+4) Delivery Worker / Notification Service
+
+Роль: доставка уведомлений, управление очередью, ретраи, интеграции с FCM/APNs/SMTP/Telegram.
+Границы ответственности:
+	•	Забирает NotificationScheduled из очереди.
+	•	Выполняет доставку по каналам и пишет исходы (Delivered/Failed) с деталями.
+Критичные моменты:
+	•	Exactly-once недостижим “в чистом виде”: нужны идемпотентные ключи на уровне провайдеров и у нас (dedupe по notification_id+channel).
+	•	Политика ретраев: разные стратегии для transient/permanent ошибок.
+	•	Метрики продукта: delivery rate, latency, opt-out rate, spam complaints.
+
+⸻
+
+5) Telegram Bot (optional, двунаправленный)
+
+Роль: канал управления подписками и канал доставки.
+Границы ответственности:
+	•	Принимает команды subscribe/unsubscribe/settings.
+	•	Верифицирует связку user_id ↔ telegram_chat_id.
+Критичные моменты:
+	•	Подтверждение канала: нельзя отправлять в Telegram без явного bind.
+	•	Состояния: пользователь может заблокировать бота → это permanent failure для канала.
+
+⸻
+
+Commands (улучшенная версия)
+
+Ниже — команды в терминах домена. У каждой: цель, идемпотентность, валидации и результат. Я добавляю несколько команд, которых не хватает для полноты продукта (управление каналами, настройками, подтверждениями, чтение/статусы).
+
+1) SubscribeToCity
+
+Кто вызывает: Web/Mobile клиент или Telegram Bot
+Цель: создать (или активировать) подписку пользователя на город с набором каналов и предпочтений.
+Вход:
+	•	user_id
+	•	city_id
+	•	channels[] (telegram/push/email/in-app)
+	•	preferences (thresholds, alert_types, quiet_hours, max_frequency, language, timezone)
+	•	idempotency_key (рекомендуется для REST)
+	•	source (web/mobile/bot)
+Валидации/правила:
+	•	Пользователь авторизован и имеет доступ к user_id.
+	•	city_id существует и поддерживается провайдером.
+	•	Нельзя создать дубликат: уникальный ключ (user_id, city_id) + активность; повторный Subscribe → upsert.
+	•	Каналы должны быть “подтверждены” (например, email verified, telegram bound, push token exists) — иначе либо ошибка, либо “частичная подписка” (см. ниже).
+Результат:
+	•	subscription_id
+	•	статус: created | reactivated | updated
+	•	warnings по неподтверждённым каналам (если выбрана мягкая политика)
+
+⸻
+
+2) UpdateSubscription
+
+Кто вызывает: Web/Mobile или Bot
+Цель: изменить каналы/настройки подписки без отписки.
+Почему нужно: иначе Subscribe превращается в “швейцарский нож” и сложнее различать intent.
+Вход: user_id, subscription_id|city_id, patch(channels, preferences), idempotency_key, source
+Валидации:
+	•	Подписка принадлежит пользователю.
+	•	Изменение quiet hours / frequency должно пересчитать будущие scheduled уведомления (или применять только к новым).
+Результат: обновлённая подписка + список изменённых полей.
+
+⸻
+
+3) UnsubscribeFromCity
+
+Кто вызывает: Web/Mobile или Bot
+Цель: деактивировать подписку (soft-delete) и отменить будущие уведомления.
+Вход:
+	•	user_id
+	•	city_id или subscription_id
+	•	channels(optional) / channels_removed (если поддерживаем частичную отписку по каналу)
+	•	source
+	•	idempotency_key
+Валидации/правила:
+	•	Должна существовать активная подписка.
+	•	Если channels указан → это “unsubscribe channel(s)” (подписка остаётся активной, если есть другие каналы).
+	•	Отмена будущих NotificationScheduled должна быть идемпотентной (например, по subscription_id).
+Результат: status: deactivated | channels_updated
+
+⸻
+
+4) BindNotificationChannel (подтверждение канала)
+
+Кто вызывает: клиент (например, после ввода email) или Bot (для Telegram bind)
+Цель: привязать/подтвердить канал доставки к пользователю.
+Примеры:
+	•	Email: отправить код → ConfirmChannel
+	•	Push: зарегистрировать device token
+	•	Telegram: связать chat_id
+Вход: user_id, channel_type, channel_address/token/chat_id, metadata
+Результат: channel_state: pending|active
+
+⸻
+
+5) ConfirmNotificationChannel
+
+Кто вызывает: клиент
+Цель: активировать канал после подтверждения (email OTP, magic link).
+Вход: user_id, channel_type, confirmation_code
+Результат: channel_state: active
+
+⸻
+
+6) RefreshForecast
+
+Кто вызывает: scheduler / operator
+Цель: получить прогноз для набора городов и зафиксировать “сырой” snapshot; дальше — обработка правил.
+Вход:
+	•	city_ids[] или batch_cursor
+	•	provider_id
+	•	force_flag
+	•	correlation_id (для трассировки)
+Валидации/правила:
+	•	Rate limit / квоты провайдера.
+	•	Дедуп: если пришёл тот же forecast_hash и forecast_version → не генерировать повторные downstream события.
+	•	Хранить raw payload для аудита и отладки (с TTL/ретеншеном).
+Результат: fetched_count, skipped_count, failed_count
+
+⸻
+
+7) EvaluateAlerts (явная команда для правил)
+
+Кто вызывает: после WeatherForecastUpdated (внутренний consumer) или scheduler
+Цель: сравнить прогноз с предыдущим snapshot и пользовательскими правилами → сформировать алерты.
+Почему полезно: отделяет интеграцию провайдера от доменной логики.
+Вход: city_id, forecast_version, evaluation_mode(diff|absolute), correlation_id
+Результат: список сработавших alert’ов (или 0).
+
+⸻
+
+8) ScheduleNotifications
+
+Кто вызывает: обработчик WeatherAlertTriggered или периодическая рассылка (“ежедневный прогноз в 8:00”)
+Цель: создать задачи на доставку уведомлений с учётом quiet hours, frequency caps, доступности каналов.
+Вход: alert_id|digest_id, target_users_query|subscription_ids, schedule_policy
+Результат: scheduled_count, suppressed_count(quiet_hours/frequency), invalid_channel_count
+
+⸻
+
+9) ProcessNotificationQueue (Delivery)
+
+Кто вызывает: delivery worker
+Цель: доставить уведомление по одному/нескольким каналам, записать outcome.
+Вход: notification_id, attempt_number, channel(optional)
+Правила:
+	•	Идемпотентность: повторная обработка не должна создавать дубли в канале (dedupe key).
+	•	Retry policy: exponential backoff для transient, stop для permanent.
+Результат: NotificationDelivered или NotificationFailed
+
+⸻
+
+Domain Events (улучшенная версия)
+
+Я делаю события более “event-friendly”: добавляю event_id, occurred_at, correlation_id, а также разделяю “технические” детали доставки от доменных причин. Важно: события — это факты, а не команды.
+
+Общие поля (рекомендация для всех событий)
+	•	event_id (UUID)
+	•	occurred_at (UTC)
+	•	correlation_id (для трассировки цепочек)
+	•	source (service/component)
+	•	schema_version
+
+⸻
+
+1) UserSubscribedToCity
+
+Факт: пользователь создал/активировал подписку на город.
+Поля:
+	•	user_id
+	•	subscription_id
+	•	city_id
+	•	channels[]
+	•	preferences (thresholds, quiet_hours, frequency_caps, alert_types, language, timezone)
+	•	created_at (можно оставить как domain timestamp, но лучше использовать occurred_at)
+	•	source (web/mobile/bot)
+Последствия:
+	•	Upsert записи подписки.
+	•	Возможный запуск “welcome” уведомления / подсказок.
+	•	Пересчёт расписаний (если есть “daily digest”).
+Проверки/инварианты:
+	•	Уникальность (user_id, city_id) среди активных подписок.
+	•	Каналы либо активны, либо подписка создаётся с warnings/ограничениями (это продуктовое решение: строгая или мягкая политика).
+
+⸻
+
+2) SubscriptionUpdated
+
+Факт: изменены каналы или предпочтения подписки.
+Поля: user_id, subscription_id, city_id, channels_before/after, preferences_diff, source
+Последствия:
+	•	Перепланировать будущие уведомления, если затронуты quiet hours/frequency.
+	•	Аудит (особенно если изменения через Bot).
+Зачем нужно: без этого события сложно объяснять изменения и отлаживать “почему перестало приходить”.
+
+⸻
+
+3) UserUnsubscribedFromCity
+
+Факт: подписка деактивирована или частично отключены каналы.
+Поля:
+	•	user_id
+	•	subscription_id
+	•	city_id
+	•	channels_removed[] (или unsubscribed_scope: all|channels)
+	•	removed_at (или occurred_at)
+	•	source
+Последствия:
+	•	Деактивация/обновление подписки.
+	•	Отмена будущих NotificationScheduled по subscription_id.
+Проверки:
+	•	Событие должно быть идемпотентным: повторная отписка не должна ломать систему.
+
+⸻
+
+4) WeatherForecastFetched (техническое, опционально)
+
+Факт: мы получили ответ от провайдера (успешно/ошибка).
+Поля: provider_id, city_id, fetched_at, status(success|failed), http_code, latency_ms, provider_request_id
+Зачем: наблюдаемость и SLA к провайдеру.
+Примечание: это скорее observability event, не доменный. Можно хранить отдельно от “бизнес-событий”.
+
+⸻
+
+5) WeatherForecastUpdated
+
+Факт: для города зафиксирован новый snapshot прогноза (прошёл дедуп).
+Поля (уточнённые):
+	•	city_id
+	•	provider_id
+	•	fetched_at
+	•	forecast_version (если есть у провайдера) / forecast_hash
+	•	forecast_summary (нормализованное краткое представление)
+	•	forecast_payload_raw (сырой JSON, возможно в object storage) + payload_ref
+	•	valid_until / ttl_seconds
+	•	data_quality (missing_fields_pct, flags)
+Последствия:
+	•	Сохранить snapshot (Snapshot pattern у вас уже в предпочтениях).
+	•	Триггер EvaluateAlerts.
+	•	Обновить кэш/Read model.
+Проверки:
+	•	Валидация схемы, подписи/ключей провайдера (если есть).
+	•	Дедуп по forecast_hash + city_id + окну времени.
+
+⸻
+
+6) WeatherAlertTriggered
+
+Факт: сработал алерт определённого типа/серьёзности для города (независимо от конкретного пользователя).
+Поля (расширенные):
+	•	alert_id
+	•	city_id
+	•	alert_type (heavy_rain, storm, temp_drop, frost, etc.)
+	•	severity (scale + нормализация)
+	•	observed_at (время явления по прогнозу/наблюдениям)
+	•	trigger_reason (diff vs previous, threshold exceeded, provider alert)
+	•	details (структурированно: expected_mm_rain, wind_gust, temp_delta, etc.)
+	•	dedupe_key (чтобы не триггерить одинаковый алерт многократно)
+Последствия:
+	•	ScheduleNotifications по подписчикам города.
+	•	Audit запись.
+Проверки:
+	•	Дедуп: “тот же алерт” в пределах окна (например, 2 часа) не должен плодить уведомления.
+	•	Не применять пользовательские quiet hours здесь — это лучше делать на этапе scheduling (иначе будет трудно “догнать” после quiet hours).
+
+⸻
+
+7) NotificationScheduled
+
+Факт: создана задача на доставку уведомления конкретному пользователю (или группе), с плановым временем и каналами.
+Поля (уточнённые):
+	•	notification_id
+	•	user_id
+	•	subscription_id (важно для отмены)
+	•	city_id
+	•	alert_id (или digest_id)
+	•	channels[]
+	•	scheduled_at
+	•	payload_summary
+	•	payload_ref (ссылка на полное тело)
+	•	status = scheduled
+	•	policy_applied (quiet_hours_defer, frequency_cap, channel_availability)
+Последствия:
+	•	Поставить в broker/queue (по каналам или единым сообщением).
+	•	Создать read-model для истории уведомлений.
+Проверки:
+	•	Каналы должны быть активны на момент scheduling (или помечать как suppressed).
+	•	Частота: если превышен cap → либо не создавать, либо создавать со статусом suppressed.
+
+⸻
+
+8) NotificationDeliveryAttempted (опционально, полезно для аналитики)
+
+Факт: воркер попытался доставить по конкретному каналу.
+Поля: notification_id, user_id, channel, attempt_number, attempted_at
+Зачем: разница между “в очереди” и “реально пытались”.
+
+⸻
+
+9) NotificationDelivered
+
+Факт: доставка по каналу завершилась успехом.
+Поля:
+	•	notification_id
+	•	user_id
+	•	channel
+	•	delivered_at
+	•	provider_msg_id
+	•	latency_ms
+Последствия:
+	•	Обновить статус.
+	•	Метрики SLA.
+Проверки:
+	•	Идемпотентность: повторное “Delivered” для same notification_id+channel не должно ломать агрегаты.
+
+⸻
+
+10) NotificationFailed
+
+Факт: доставка по каналу завершилась ошибкой.
+Поля (уточнённые):
+	•	notification_id
+	•	user_id
+	•	channel
+	•	failed_at
+	•	error_code
+	•	error_class (transient|permanent)
+	•	retry_count
+	•	next_retry_at (если transient)
+	•	provider_msg_id (если был)
+Последствия:
+	•	Если transient → запланировать retry.
+	•	Если permanent → отключить канал или пометить “requires user action” (продуктовое решение).
+	•	Алёрты на деградацию поставщика.
+Проверки:
+	•	Корректная классификация ошибок критична, иначе либо спамим ретраями, либо теряем доставку.
+
+
+### Roadmap v2.0
+
+v1.0 — Minimum Lovable Product (MLP)
+
+Цель версии
+
+Проверить “работает ли ценность” погодных уведомлений: пользователи подписываются, подтверждают канал, получают понятные и полезные уведомления и возвращаются/взаимодействуют.
+
+Scope (уточнённый и улучшенный)
+
+Каналы
+	•	Email (обязательный для v1.0).
+	•	In-app push (если речь про push внутри приложения: это скорее in-app/inbox + локальные пуши; если предполагаются APNs/FCM — это уже внешние push-токены и немного сложнее. Для MLP ок оставить “in-app inbox + простые пуши”).
+
+Подписка и настройки
+	•	Подписка на “локацию по умолчанию” (1 город / 1 локация).
+	•	Типы уведомлений:
+	•	“Daily digest” (утром в фиксированное время по TZ пользователя/локации).
+	•	“Severe alerts” (шторм/ливень/мороз/опасная жара — фиксированный набор).
+	•	Подтверждение email по ссылке (double opt-in).
+	•	Частотные ограничения по умолчанию:
+	•	не более X severe-уведомлений в сутки (например, 3), чтобы не “заспамить” при дерганом прогнозе.
+	•	Отписка: one-click unsubscribe (обязательно для email).
+
+Контент уведомлений
+	•	Digest: кратко (температура мин/макс, осадки/ветер, 1–2 ключевых факта).
+	•	Severe: тип опасности + “когда” + “что ожидается” + ссылка/CTA открыть приложение/карточку.
+
+Наблюдаемость и качество
+	•	Логи корреляции “подписка → отправка → доставка → клик”.
+	•	Дедупликация прогнозов/алертов (минимальная): один алерт одного типа в городе в пределах окна.
+
+API/продуктовые ограничения (осознанно)
+	•	Без сложных правил/порогов, без геофенсинга, без истории.
+	•	Без SMS/Telegram.
+	•	Минимальная админка (можно вообще без UI, только профиль/страница).
+
+Метрики успеха (North Star + supporting)
+
+Activation / Value
+	•	Email confirmation rate: % подтвердивших email от начавших подписку.
+	•	Subscription activation time: медиана времени “создал → подтвердил”.
+	•	Notification CTR (для email и пушей отдельно): клики / доставленные.
+
+Delivery / Reliability
+	•	Email deliverability: delivered / sent (а также bounce rate).
+	•	Push delivery rate (если есть внешний пуш): delivered / attempted.
+	•	Median send latency: время от “alert triggered/scheduled” до “delivered”.
+
+Retention (ранний сигнал)
+	•	7-day retention среди подписавшихся (или DAU/WAU uplift у подписчиков vs контроль).
+	•	Unsubscribe rate: отписки / активные подписки (по неделе).
+
+Целевые ориентиры (примерно, для принятия решений)
+	•	Confirmation rate: 50–70%+ (если ниже — проблема с UX/доверия/попаданием в спам).
+	•	Bounce rate: <2–5%.
+	•	Severe CTR: зависит от канала, но важно сравнение с digest (severe обычно выше).
+
+⸻
+
+v1.1 — Надёжность доставки и управление подпиской
+
+Цель версии
+
+Сделать систему “доверяемой”: пользователь видит статус, может управлять каналами, доставка становится предсказуемой; добавить SMS как “канал последней надежды” для критических случаев.
+
+Scope (уточнённый и улучшенный)
+
+Управление подпиской
+	•	Панель в профиле:
+	•	включить/выключить уведомления,
+	•	выбрать каналы (email/push, SMS — отдельно как “critical only”),
+	•	выбрать типы (digest vs severe),
+	•	показать текущую локацию/город.
+	•	“Тестовое уведомление” для каждого канала:
+	•	отправить тест на email,
+	•	пуш (если поддерживается),
+	•	SMS (если включен).
+
+Статус и диагностика
+	•	Статус подписки: active/pending_email/failed_delivery/channel_unverified.
+	•	Причины деградации: “email bounced”, “push token invalid”, “sms provider error”.
+
+SMS (как опция)
+	•	Только для Critical alerts (например, severity >= high).
+	•	Верификация телефона (OTP).
+	•	Ограничение частоты и стоимость:
+	•	дневной лимит SMS на пользователя,
+	•	глобальный бюджет/лимит на систему.
+
+Retry policy и очереди
+	•	Явная политика ретраев:
+	•	transient → ретраи с backoff,
+	•	permanent → stop + пометка канала.
+	•	Мониторинг задержек очереди (queue lag), ошибки провайдеров.
+
+Качество контента
+	•	Unified шаблоны: одинаковый смысл в email/push/sms (разный формат).
+
+Метрики успеха
+
+Trust / Control
+	•	Test notification success rate: % успешных тестовых уведомлений по каналам.
+	•	Self-serve change rate: доля пользователей, которые меняют настройки без обращения в поддержку (если есть support).
+
+Delivery
+	•	Delivery success rate by channel (email/push/sms).
+	•	Time-to-deliver P95 для severe/critical.
+	•	Retry effectiveness: доля сообщений, доставленных после 1+ ретрая.
+	•	Provider error rate (по каждому провайдеру).
+
+Cost / Efficiency
+	•	SMS cost per active critical subscriber.
+	•	Critical SMS volume: SMS/день и доля “полезных” (proxy: CTR/открытия, если возможно, или снижение отписок).
+
+User outcomes
+	•	Unsubscribe rate должен снижаться относительно v1.0 (или хотя бы не расти при росте объёма).
+	•	Complaint signals: spam complaints, block bot, bounce growth.
+
+Ориентиры
+	•	P95 latency severe: целевое окно (например, <60–120 секунд после trigger, зависит от архитектуры).
+	•	SMS fail rate: минимизировать, но важнее “конверсия критических доставок” (fallback).
+
+⸻
+
+v2.0 — Персонализация и расширенные сценарии
+
+Цель версии
+
+Сделать уведомления “не просто полезными, а незаменимыми”: высокая релевантность, сценарии по месту и поведению, богатый формат, платформа под монетизацию/премиум.
+
+Scope (уточнённый и улучшенный)
+
+Гибкие правила (персонализация)
+	•	Custom thresholds:
+	•	ветер > X,
+	•	осадки > Y мм,
+	•	температура < / > Z,
+	•	резкое изменение (дельта за N часов).
+	•	Комбинаторика правил ограничена (чтобы не взорвать UX):
+	•	presets + advanced mode.
+	•	Quiet hours + “catch-up delivery” (после quiet hours отправить, если алерт ещё актуален).
+
+Локации и геофенсинг
+	•	Несколько локаций/городов на пользователя.
+	•	Геофенсинг:
+	•	home/work/“where I am now”.
+	•	Приоритет локаций: текущая > избранные > домашняя.
+
+Rich notifications
+	•	Карточка риска:
+	•	период действия,
+	•	confidence (если есть),
+	•	рекомендации (что делать),
+	•	CTA (подробнее, поделиться, настроить пороги).
+	•	Картинка/иконки, deep-link в приложение.
+
+История и аналитика
+	•	Inbox/история уведомлений:
+	•	статус доставки,
+	•	“почему сработало” (trigger_reason),
+	•	feedback (полезно/неполезно, слишком часто).
+	•	Аналитика реакций:
+	•	open rate, CTR,
+	•	suppressions (quiet hours/frequency caps),
+	•	негативные сигналы.
+
+SLA/SLI
+	•	Формализация SLO:
+	•	delivery success,
+	•	latency,
+	•	data freshness (как давно обновляли прогноз).
+	•	Алертинг для on-call.
+
+Монетизация (опциональный трек, но подготовка)
+	•	Premium:
+	•	больше локаций,
+	•	advanced rules,
+	•	“early warnings”,
+	•	richer insights.
+	•	Важно: не смешивать в одной версии “core value” и “пейволл без ценности”.
+
+Метрики успеха
+
+Product value / Retention
+	•	Subscriber 30-day retention (ключевая на этом этапе).
+	•	DAU/WAU среди подписчиков и uplift vs не-подписчики.
+	•	Notification relevance score:
+	•	% “полезно” в feedback,
+	•	“mute / отключил тип” как негативный сигнал.
+
+Personalization adoption
+	•	Share of users using custom thresholds.
+	•	Avg number of rules per user (контролируемый рост).
+	•	Geofence adoption rate и доля уведомлений по geofence vs статическим локациям.
+
+Quality & Spam control
+	•	Notifications per user per day (median, P95).
+	•	Suppression rate (quiet hours/frequency caps) — как показатель, что система умеет себя ограничивать.
+	•	Mute/disable rate по типам алертов.
+
+SLA/Operations
+	•	P95 end-to-end latency по critical/severe/digest отдельно.
+	•	Forecast freshness: P95 “возраст” прогноза на момент вычисления алерта.
+	•	Dedup rate: доля предотвращённых дублей (важно для стабильности UX).
+
+Монетизация (если включаем)
+	•	Conversion to premium (trial → paid).
+	•	ARPPU / churn premium.
+	•	Attach rate: доля подписчиков, включивших premium-фичи.
+
+
+### Chain of Thought
+**Задача:** 
+Сформировать спецификацию REST API контракта для WeatherService v1.0
+
+
+**Шаги:** 
+1) Определить доменную модель и REST ресурсы, состояния и переходы между ними.
+2) Спроектировать эндпоинты 
+3) Зафиксировать контракт ошибок и идемпотентности
+4) Собрать финальную спецификацию в Markdown
+
+
+**Последовательность:** 
+Шаг 1:
+[R] Действуй как Backend-разработчик/API Architect с опытом проектирования публичных REST API
+[C] WeatherService v1.0: POST /subscribe (email+city), email confirm link, PG subscriptions, Redis cache TTL 600s, OWM validation
+[T] Определи доменную модель для подписки и подтверждения: сущности, поля, статусы, инварианты, state machine
+[F] Ответ оформи в md: таблица сущностей + state diagram текстом + список инвариантов
+
+- составлена таблица доменных сущностей
+- есть текстовое описание State diagram
+- описаны инварианты
+
+Шаг 2:
+[R] Действуй как Senior API Designer с большим коммерческим опытом
+[C] Используй результат шага 1 как источник истины. Нужен минимальный публичный REST API для v1.0
+[T] Спроектируй эндпоинты: create subscription, confirm, get subscription, unsubscribe. Определи request/response и статус-коды.
+[F] Таблица эндпоинтов + краткие JSON схемы (поля и типы) и примеры response
+
+- получена таблица эндпоинтов
+- дано описание JSON схем
+- прописаны общие соглашения
+
+Шаг 3:
+[R] Действуй как Senior QA 
+[C] Используй эндпоинты из шага 2.
+[T] Определи единый error schema, перечень ошибок по каждому endpoint, идемпотентность
+[F] Markdown: error schema и матрица ошибок (endpoint → code → причина) и правила идемпотентности
+
+- описана единая error schema
+- получена матрица ошибок
+- описаны правила идемпотентности
+
+Шаг 4:
+[R] Действуй как опытный Tech Writer для API документации
+[C] Собери спецификацию v1.0 из шагов 1–3 и сверяйся с Acceptance Criteria.
+[T] Собери финальный документ “WeatherService API Contract v1.0” с примерами запросов и ответов.
+[F] Один md документ с разделами Overview, Resources, Endpoints, Errors, Idempotency, Examples
+
+- получен единый финальный документ
+
+
+**Результат:** 
+# WeatherService API Contract v1.0
+
+## Overview
+
+WeatherService v1.0 предоставляет минимальный публичный REST API для подписки на погодные уведомления по выбранному городу. Основной сценарий: пользователь отправляет запрос на подписку (`POST /subscriptions`), получает письмо с ссылкой подтверждения и активирует подписку через `POST /subscriptions/confirm`.
+
+**Сценарии v1.0**
+- Создать подписку на **утреннюю email-сводку** по городу (status=`pending`)
+- Подтвердить email по ссылке (status=`active`)
+- Получить текущее состояние подписки
+- Отписаться (soft-delete, status=`unsubscribed`)
+- Валидация города через OpenWeatherMap (OWM)
+- Кэш данных погоды в Redis с TTL 600 секунд
+
+**Набор каналов**
+- `email` — основной канал v1.0  
+*(in-app/push могут присутствовать как расширение, но в рамках контракта v1.0 считаются опциональными)*
+
+**Time format**
+- Все timestamps: ISO 8601 в UTC, например: `2026-02-25T10:15:30Z`
+
+**Base URL**
+- `https://<host>/api/v1`
+
+---
+
+## Resources
+
+### Subscription
+
+Подписка пользователя на уведомления для города.
+
+**Идентификаторы**
+- `id` (UUID) — primary key
+- Уникальность: `(email_normalized, city_normalized, notification_type)` среди подписок со статусом `pending` или `active`
+
+**Поля**
+- `email_masked` (string) — email в маскированном виде в публичных ответах
+- `email_normalized` (string, internal) — нормализованный email
+- `city` (string) — исходный ввод (может не возвращаться публично)
+- `city_normalized` (string) — нормализованное значение города
+- `notification_type` (enum) — `morning_digest` (v1.0)
+- `channels` (array enum) — `["email"]` (v1.0)
+- `timezone` (string, IANA TZ) — например `Europe/Helsinki`
+- `status` (enum) — `pending | active | unsubscribed`
+- `created_at` (timestamp)
+- `confirmed_at` (timestamp, nullable)
+- `unsubscribed_at` (timestamp, nullable)
+- `consent_at` (timestamp, internal/optional to expose)
+- `source` (enum string) — `web | mobile | api` (для аудита)
+
+### EmailConfirmationToken
+
+Одноразовый токен подтверждения email, выпущенный для конкретной подписки.
+
+**Поля (internal)**
+- `subscription_id` (UUID)
+- `token_hash` (string)
+- `expires_at` (timestamp)
+- `used_at` (timestamp, nullable)
+- `resent_count` (int)
+- `last_sent_at` (timestamp, nullable)
+
+---
+
+### State machine (Subscription)
+
+- `pending` → `active` (по успешному confirm токеном)
+- `pending` → `unsubscribed` (unsubscribe допускается, если политика разрешает)
+- `active` → `unsubscribed` (unsubscribe)
+- `unsubscribed` — terminal в v1.0
+
+---
+
+### Инварианты (обязательные правила)
+
+1. **Уникальность подписки:** нельзя создать 2 подписки со статусом `pending/active` с одинаковой тройкой `(email_normalized, city_normalized, notification_type)`.
+2. **Валидация города:** создание подписки требует успешной проверки города через OWM; если город не распознан — подписка не создаётся.
+3. **Токен подтверждения одноразовый:** повторное использование запрещено; токен имеет TTL.
+4. **Подтверждение обязательно:** `active` возможен только после `confirm`.
+5. **PII safety:** в публичных ответах возвращается `email_masked`, raw token не возвращается.
+6. **Redis кэш погоды:** TTL = 600 секунд (cache-aside); источник данных помечается как `cache|provider`.
+
+---
+
+## Endpoints
+
+### 1) Create Subscription
+
+**POST** `/subscriptions`
+
+Создаёт подписку со статусом `pending`, валидирует город через OWM, инициирует отправку письма подтверждения.
+
+#### Request
+
+```json
+{
+  "email": "string",
+  "city": "string",
+  "notification_type": "morning_digest",
+  "channels": ["email"],
+  "timezone": "Europe/Helsinki",
+  "source": "web"
+}
+
+Полевая схема
+	•	email (string, required)
+	•	city (string, required)
+	•	notification_type (enum, optional, default=morning_digest)
+	•	channels (array enum, optional, default=["email"])
+	•	timezone (string, optional)
+	•	source (string, optional)
+
+Response — 201 Created
+
+{
+  "subscription": {
+    "id": "uuid",
+    "email_masked": "u***@example.com",
+    "city_normalized": "Helsinki",
+    "notification_type": "morning_digest",
+    "channels": ["email"],
+    "status": "pending",
+    "timezone": "Europe/Helsinki",
+    "created_at": "2026-02-25T10:15:30Z"
+  },
+  "confirmation": {
+    "method": "email_link",
+    "expires_at": "2026-02-25T11:15:30Z"
+  },
+  "weather": {
+    "source": "cache|provider",
+    "cached_ttl_seconds": 600,
+    "summary": {
+      "temp_c": 2.3,
+      "wind_mps": 4.2,
+      "precip_mm": 0.0
+    }
+  }
+}
+
+Status codes
+	•	201 — подписка создана (pending)
+	•	400 — невалидный запрос или город не распознан
+	•	409 — дубликат подписки
+	•	429 — превышен лимит запросов
+	•	503 — OWM недоступен при обязательной валидации
+
+⸻
+
+2) Confirm Subscription
+
+POST /subscriptions/confirm
+
+Подтверждает email по токену из письма и переводит подписку pending → active.
+
+Request
+
+{
+  "token": "string"
+}
+
+Response — 200 OK
+
+{
+  "subscription": {
+    "id": "uuid",
+    "status": "active",
+    "confirmed_at": "2026-02-25T10:20:00Z"
+  }
+}
+
+Status codes
+	•	200 — подтверждено, подписка активна
+	•	400 — токен невалиден/истёк
+	•	404 — токен/подписка не найдены
+	•	409 — токен уже использован (может быть 200 при идемпотентном confirm)
+	•	429 — rate limit / анти-брутфорс
+
+⸻
+
+3) Get Subscription
+
+GET /subscriptions/{subscription_id}
+
+Возвращает текущее состояние подписки.
+
+Response — 200 OK
+
+{
+  "subscription": {
+    "id": "uuid",
+    "email_masked": "u***@example.com",
+    "city_normalized": "Helsinki",
+    "notification_type": "morning_digest",
+    "channels": ["email"],
+    "status": "active",
+    "timezone": "Europe/Helsinki",
+    "created_at": "2026-02-25T10:15:30Z",
+    "confirmed_at": "2026-02-25T10:20:00Z",
+    "unsubscribed_at": null
+  }
+}
+
+Status codes
+	•	200 — найдено
+	•	404 — не найдено
+	•	401/403 — нет доступа (если используется auth)
+
+⸻
+
+4) Unsubscribe
+
+POST /subscriptions/{subscription_id}/unsubscribe
+
+Переводит подписку в статус unsubscribed (soft-delete). Рекомендуется идемпотентное поведение: повторный вызов возвращает 200 и текущий статус.
+
+Request (optional)
+
+{
+  "reason": "user_request",
+  "source": "web"
+}
+
+Response — 200 OK
+
+{
+  "subscription": {
+    "id": "uuid",
+    "status": "unsubscribed",
+    "unsubscribed_at": "2026-02-25T12:00:00Z"
+  }
+}
+
+Status codes
+	•	200 — отписка выполнена (или уже была выполнена)
+	•	404 — подписка не найдена
+	•	401/403 — нет доступа
+
+⸻
+
+Errors
+
+Error schema
+
+{
+  "error": {
+    "code": "string",
+    "message": "string",
+    "details": {
+      "field": "string",
+      "reason": "string",
+      "meta": {}
+    },
+    "correlation_id": "string",
+    "retryable": true
+  }
+}
+
+Error codes
+
+error.code	HTTP	Описание
+validation_failed	400	Ошибка валидации входных данных
+unknown_city	400	Город не распознан OWM
+duplicate_subscription	409	Дубликат подписки
+token_invalid	400	Токен некорректен
+token_expired	400	Токен истёк
+token_used	409 (или 200)	Токен уже использован
+subscription_not_found	404	Подписка не найдена
+not_authorized	401	Нет авторизации
+forbidden	403	Нет прав
+rate_limited	429	Rate limit
+provider_unavailable	503	OWM недоступен
+internal_error	500	Внутренняя ошибка
+
+
+⸻
+
+Idempotency
+
+POST /subscriptions (Create)
+
+Рекомендуется поддержать Idempotency-Key header для безопасного повторения при сетевых сбоях.
+	•	Header: Idempotency-Key: <uuid>
+	•	Повтор запроса с тем же ключом и тем же payload → возвращает тот же результат (HTTP+body).
+	•	Повтор с тем же ключом и другим payload → 409 (рекомендуется отдельный idempotency_key_conflict, либо validation_failed).
+
+Минимально допустимо (если ключ не реализован): “естественная идемпотентность” через уникальный индекс, но тогда повтор вернёт 409 duplicate_subscription.
+
+POST /subscriptions/confirm (Confirm)
+
+Рекомендуется идемпотентный confirm:
+	•	если токен уже использован / подписка уже active → 200 OK с текущим статусом.
+
+POST /subscriptions/{id}/unsubscribe
+
+Рекомендуется идемпотентный unsubscribe:
+	•	повторная отписка → 200 OK и status=unsubscribed.
+
+⸻
+
+Examples
+
+Example A — Create subscription (happy path)
+
+Request
+
+POST /api/v1/subscriptions
+Content-Type: application/json
+Idempotency-Key: 3f6b0dd0-6d6b-4d5a-8b4f-0c90f48a9f1a
+
+{
+  "email": "user1@example.com",
+  "city": "Helsinki",
+  "notification_type": "morning_digest",
+  "channels": ["email"],
+  "timezone": "Europe/Helsinki",
+  "source": "web"
+}
+
+Response (201)
+
+{
+  "subscription": {
+    "id": "8d3d3f4c-79af-4c8e-bc64-8a62b2a9f7c1",
+    "email_masked": "u***@example.com",
+    "city_normalized": "Helsinki",
+    "notification_type": "morning_digest",
+    "channels": ["email"],
+    "status": "pending",
+    "timezone": "Europe/Helsinki",
+    "created_at": "2026-02-25T10:15:30Z"
+  },
+  "confirmation": {
+    "method": "email_link",
+    "expires_at": "2026-02-25T11:15:30Z"
+  },
+  "weather": {
+    "source": "provider",
+    "cached_ttl_seconds": 600,
+    "summary": {
+      "temp_c": 2.3,
+      "wind_mps": 4.2,
+      "precip_mm": 0.0
+    }
+  }
+}
+
+
+⸻
+
+Example B — Confirm subscription
+
+Request
+
+POST /api/v1/subscriptions/confirm
+Content-Type: application/json
+
+{
+  "token": "raw-token-from-email-link"
+}
+
+Response (200)
+
+{
+  "subscription": {
+    "id": "8d3d3f4c-79af-4c8e-bc64-8a62b2a9f7c1",
+    "status": "active",
+    "confirmed_at": "2026-02-25T10:20:00Z"
+  }
+}
+
+
+⸻
+
+Example C — Duplicate subscription
+
+Response (409)
+
+{
+  "error": {
+    "code": "duplicate_subscription",
+    "message": "Subscription already exists for the given email, city and notification type.",
+    "details": {
+      "field": "email,city,notification_type",
+      "reason": "duplicate",
+      "meta": {}
+    },
+    "correlation_id": "c-9b2c1f9c2e5f4d9a",
+    "retryable": false
+  }
+}
+
+
+⸻
+
+Example D — Unknown city
+
+Response (400)
+
+{
+  "error": {
+    "code": "unknown_city",
+    "message": "City is not recognized by the weather provider.",
+    "details": {
+      "field": "city",
+      "reason": "not_found",
+      "meta": {
+        "provider": "OWM"
+      }
+    },
+    "correlation_id": "c-07acb94fbf1f4a2d",
+    "retryable": false
+  }
+}
+
+
+⸻
+
+Example E — Unsubscribe (idempotent)
+
+Request
+
+POST /api/v1/subscriptions/8d3d3f4c-79af-4c8e-bc64-8a62b2a9f7c1/unsubscribe
+Content-Type: application/json
+
+{
+  "reason": "user_request",
+  "source": "web"
+}
+
+Response (200)
+
+{
+  "subscription": {
+    "id": "8d3d3f4c-79af-4c8e-bc64-8a62b2a9f7c1",
+    "status": "unsubscribed",
+    "unsubscribed_at": "2026-02-25T12:00:00Z"
+  }
+}
+
+
+
 ## 4. Рефлексия
 
 **Before/After:** 
-    TODO: Сравните результаты "простого" промпта из Практики 1 и R.C.T.F. из Практики 2.
-    В чем главная разница?
+    С явным указанием роли получается более стабильный уровень продуманности на каждом шаге. 
+    Также прописывание контекста явно позволяет быть уверенным в том, что модель будет давать ответ на основе имеющихся данных с меньшими галлюцинациями.
+    Указание формата хорошо помогает сразу получить то, что тебе нужно, без необходимости дорабатывать для соответствия оформлению
     
 
-**Сложности:** TODO: Какая часть R.C.T.F. дается сложнее всего (Role, Context...)?
+**Сложности:** Для меня сложнее всего описывать формат, когда он явно не ограничен общепринятыми правилами.
