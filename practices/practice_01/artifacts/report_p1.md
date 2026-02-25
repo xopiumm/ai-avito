@@ -675,26 +675,531 @@ Dependencies/Notes:
 
 ### LLD по Epic
 
-TODO: Выберите один Epic и сделайте LLD.
+# LLD: Epic “Delivery Pipeline” для WeatherService (REST API уведомлений о погоде)
 
-Допустимые форматы:
-- Markdown (описание модулей/эндпоинтов/контрактов)
-- схема (Mermaid/Draw.io) + пояснение
+## 1) Цели и scope
+
+### Цели
+- **Надёжная доставка** уведомлений пользователям (push/email/sms; опционально Telegram) с заданным SLA.
+- **Минимизация потерь**: гарантированная обработка (at-least-once) + идемпотентность на получателе/провайдерах.
+- **Управляемые retries** с backoff + **DLQ** для ручного/автоматического разбора.
+- **Throttling** (по провайдеру/каналу/пользователю) для защиты от лимитов и всплесков.
+
+### Scope (что входит)
+- Очереди: enqueue, dequeue, lease/visibility timeout, ack/nack.
+- Retry policy: экспоненциальный backoff, max attempts, jitter, retryable vs non-retryable.
+- DLQ: помещение сообщений после исчерпания попыток или фатальных ошибок.
+- Интеграции с провайдерами: Push (FCM/APNS), Email (SMTP/SendGrid), SMS (Twilio/др.), Telegram Bot (опц).
+- Статусы доставки, аудит, метрики, трассировка.
+
+### Out of scope (в этом эпике)
+- Бизнес-логика “когда слать”: правила триггеров погоды (это в домене Notifications/Rules).
+- UI/клиенты.
+- Управление подписками и получение погоды — как источники событий/задач, но не их LLD.
+
+---
+
+## 2) Компоненты
+
+### Сервисы (логические)
+1) **Notification Orchestrator (NO)**
+   - Принимает “NotificationRequest” от домена (например, “WeatherAlert”).
+   - Рендерит шаблоны, выбирает каналы, формирует *DeliveryTask* на каждый канал/адрес.
+   - Публикует задачи в **DeliveryQueue**.
+
+2) **Delivery Worker (DW)**
+   - Консьюмер очереди DeliveryQueue.
+   - Выполняет отправку через провайдер адаптер.
+   - Реализует retry/throttling/idempotency.
+   - Обновляет статусы в БД.
+   - Пушит события DeliveryStatusChanged.
+
+3) **Provider Adapters**
+   - **PushAdapter** (FCM/APNS)
+   - **EmailAdapter** (SMTP/SendGrid)
+   - **SmsAdapter** (Twilio/др.)
+   - **TelegramAdapter** (опционально)
+   - Единый контракт: `Send(request) -> provider_message_id | error`
+
+4) **Throttle Service**
+   - Token bucket / leaky bucket:
+     - per-provider (общий)
+     - per-channel
+     - per-user (опц)
+   - Хранилище лимитов: Redis.
+
+5) **DLQ Processor**
+   - Читает DLQ, применяет политики:
+     - авто-переотправка (manual requeue)
+     - маркировка как failed_permanent
+     - эскалации (алерты).
+
+### Хранилища/инфраструктура
+- **PostgreSQL**: задания, попытки, статусы, аудит.
+- **Redis**: rate limit, идемпотентность (короткоживущие ключи), дедупликация.
+- **Message Broker**: Kafka/RabbitMQ/SQS (абстракция: DeliveryQueue + DLQ).
+
+---
+
+## 3) Контракты сообщений
+
+> Формат: JSON. Все timestamps — RFC3339, UTC. Все id — UUID.
+
+### 3.1 Команда: `DeliveryTaskEnqueue`
+Топик/очередь: `delivery.tasks`
+
+```json
+{
+  "task_id": "uuid",
+  "notification_id": "uuid",
+  "user_id": "uuid",
+  "channel": "PUSH|EMAIL|SMS|TELEGRAM",
+  "priority": "LOW|NORMAL|HIGH",
+  "payload": {
+    "title": "string",
+    "body": "string",
+    "deeplink": "string|null",
+    "template_id": "string|null",
+    "template_vars": { "k": "v" }
+  },
+  "destination": {
+    "device_token": "string|null",
+    "email": "string|null",
+    "phone_e164": "string|null",
+    "telegram_chat_id": "string|null"
+  },
+  "dedupe_key": "string",
+  "idempotency_key": "string",
+  "scheduled_at": "2026-02-25T10:00:00Z",
+  "expires_at": "2026-02-25T10:30:00Z",
+  "created_at": "2026-02-25T09:59:59Z",
+  "trace": {
+    "trace_id": "string",
+    "span_id": "string"
+  }
+}
+
+Правила:
+	•	dedupe_key — для дедупликации на уровне NO (например, weatheralert:{user}:{city}:{rule}:{window}).
+	•	idempotency_key — для повторной обработки в DW (ключ отправки). Должен быть стабильным для одного task.
+
+3.2 Событие: DeliveryStatusChanged
+
+Топик: delivery.events
+
+{
+  "task_id": "uuid",
+  "notification_id": "uuid",
+  "user_id": "uuid",
+  "channel": "PUSH|EMAIL|SMS|TELEGRAM",
+  "status": "QUEUED|SENDING|SENT|DELIVERED|FAILED_RETRYABLE|FAILED_PERMANENT|DLQ",
+  "attempt": 3,
+  "provider": "FCM|APNS|SENDGRID|SMTP|TWILIO|TELEGRAM",
+  "provider_message_id": "string|null",
+  "error": {
+    "code": "string",
+    "message": "string",
+    "retryable": true
+  },
+  "occurred_at": "2026-02-25T10:01:02Z"
+}
+
+3.3 DLQ сообщение: DeliveryTaskDLQ
+
+Очередь: delivery.tasks.dlq
+
+{
+  "task": { /* исходный DeliveryTaskEnqueue */ },
+  "final_status": "DLQ",
+  "attempts": 7,
+  "last_error": { "code": "PROVIDER_TIMEOUT", "message": "timeout", "retryable": true },
+  "moved_to_dlq_at": "2026-02-25T10:10:00Z"
+}
+
+
+⸻
+
+4) Алгоритм обработки
+
+4.1 Enqueue (Notification Orchestrator)
+	1.	Получить доменное событие (например, “WeatherAlertTriggered”).
+	2.	Сформировать notification_id.
+	3.	Выбрать каналы по настройкам пользователя (например: push+email).
+	4.	Для каждого канала собрать DeliveryTaskEnqueue:
+	•	task_id = UUID
+	•	dedupe_key вычислить
+	•	idempotency_key = task_id (или детерминированно: hash(notification_id + channel + destination))
+	5.	Дедупликация:
+	•	если dedupe_key уже “видели” в Redis (TTL = окно дедупа, напр. 10 мин) → не enqueue.
+	6.	Записать delivery_tasks со статусом QUEUED.
+	7.	Опубликовать в delivery.tasks.
+
+4.2 Dequeue/Send (Delivery Worker)
+
+Псевдологика для одного сообщения:
+	1.	Проверить expires_at:
+	•	если now > expires_at → статус FAILED_PERMANENT (reason: EXPIRED), ack.
+	2.	Идемпотентность:
+	•	Redis SETNX(idempotency_key, task_id, TTL=24h)
+	•	если ключ уже существует → ack (уже отправляли/обрабатывали), не слать.
+	3.	Throttling:
+	•	запросить токены (provider/channel/user).
+	•	если токенов нет → requeue с scheduled_at = now + throttle_delay_ms, nack/requeue.
+	4.	Lease/lock:
+	•	в БД перевести status в SENDING если текущий QUEUED|FAILED_RETRYABLE (CAS по версии).
+	5.	Вызвать адаптер провайдера Send():
+	•	успех → SENT, сохранить provider_message_id, попытка +1, ack.
+	•	ошибка:
+	•	классифицировать retryable/non-retryable
+	•	если non-retryable → FAILED_PERMANENT, ack
+	•	если retryable:
+	•	если attempt+1 <= max_attempts:
+	•	вычислить next_attempt_at = now + backoff(attempt) + jitter
+	•	статус FAILED_RETRYABLE, requeue с delay, ack/nack по механике брокера
+	•	иначе → DLQ, публикуем в delivery.tasks.dlq, ack
+
+4.3 Backoff policy (пример)
+	•	base = 2s, cap = 10m
+	•	delay = min(cap, base * 2^(attempt-1))
+	•	jitter = random(0..delay*0.2)
+	•	max_attempts по каналу:
+	•	PUSH: 5
+	•	EMAIL: 7
+	•	SMS: 6
+	•	TELEGRAM: 5
+
+4.4 Статусы (строго)
+	•	QUEUED — задача в очереди/ожидает.
+	•	SENDING — воркер взял в работу (lease).
+	•	SENT — запрос к провайдеру успешен (есть provider_message_id).
+	•	DELIVERED — опционально (если провайдер даёт callback/webhook); иначе не используется.
+	•	FAILED_RETRYABLE — временная ошибка, будет повтор.
+	•	FAILED_PERMANENT — фатальная ошибка, повторов не будет.
+	•	DLQ — перемещено в DLQ.
+
+⸻
+
+5) Схема БД (PostgreSQL)
+
+5.1 delivery_tasks
+	•	task_id uuid pk
+	•	notification_id uuid not null
+	•	user_id uuid not null
+	•	channel text not null — enum: PUSH/EMAIL/SMS/TELEGRAM
+	•	priority text not null — LOW/NORMAL/HIGH
+	•	status text not null — см. статусы
+	•	attempt int not null default 0
+	•	max_attempts int not null
+	•	scheduled_at timestamptz not null
+	•	expires_at timestamptz not null
+	•	next_attempt_at timestamptz null
+	•	provider text null
+	•	provider_message_id text null
+	•	destination jsonb not null
+	•	payload jsonb not null
+	•	dedupe_key text not null
+	•	idempotency_key text not null
+	•	last_error_code text null
+	•	last_error_message text null
+	•	created_at timestamptz not null
+	•	updated_at timestamptz not null
+	•	version int not null default 0 — для CAS
+
+Индексы:
+	•	idx_delivery_tasks_status_scheduled on (status, scheduled_at)
+	•	idx_delivery_tasks_user on (user_id)
+	•	uidx_delivery_tasks_idempotency unique (idempotency_key)
+	•	idx_delivery_tasks_dedupe on (dedupe_key)
+
+5.2 delivery_attempts
+	•	id bigserial pk
+	•	task_id uuid not null fk -> delivery_tasks(task_id)
+	•	attempt int not null
+	•	started_at timestamptz not null
+	•	ended_at timestamptz not null
+	•	result text not null — SUCCESS/ERROR
+	•	retryable boolean not null
+	•	provider text null
+	•	provider_message_id text null
+	•	error_code text null
+	•	error_message text null
+	•	http_status int null
+	•	latency_ms int null
+
+Индексы:
+	•	idx_delivery_attempts_task on (task_id, attempt)
+
+5.3 provider_outbox (опционально, если нужна “transactional outbox”)
+	•	id bigserial pk
+	•	event_type text not null — DeliveryStatusChanged
+	•	payload jsonb not null
+	•	created_at timestamptz not null
+	•	published_at timestamptz null
+	•	status text not null — NEW/PUBLISHED/FAILED
+
+⸻
+
+6) Ошибки и политики
+
+6.1 Классификация ошибок
+
+Retryable
+	•	PROVIDER_TIMEOUT
+	•	PROVIDER_5XX
+	•	NETWORK_ERROR
+	•	RATE_LIMITED (429)
+	•	TEMPORARY_UNAVAILABLE
+
+Non-retryable
+	•	INVALID_DESTINATION (битый email/phone/token)
+	•	UNREGISTERED_DEVICE (push token invalid)
+	•	TEMPLATE_RENDER_ERROR
+	•	AUTH_ERROR (неверные креды) — обычно системная, но повтор бессмысленен до фикса
+	•	EXPIRED (now > expires_at)
+
+6.2 Политика DLQ
+	•	В DLQ попадает:
+	•	retryable, если attempt > max_attempts
+	•	non-retryable (по настройке): либо сразу FAILED_PERMANENT, либо тоже в DLQ для анализа
+	•	DLQ Processor:
+	•	поддерживает команды:
+	•	requeue(task_id, delay)
+	•	mark_permanent(task_id, reason)
+	•	алертит при росте DLQ > threshold.
+
+6.3 SLA и TTL
+	•	TTL сообщения: expires_at в задаче (например 30 минут для weather-alert, 2 часа для daily-forecast).
+	•	“Бессмысленные” после TTL уведомления → FAILED_PERMANENT(EXPIRED).
+
+6.4 Гарантии
+	•	DeliveryQueue: at-least-once.
+	•	Идемпотентность: idempotency_key + уникальный индекс/Redis.
+	•	Порядок: не гарантируется (если нужен — отдельный key-partition per user/channel).
+
+⸻
+
+7) Observability
+
+Метрики (Prometheus)
+	•	delivery_tasks_enqueued_total{channel,priority}
+	•	delivery_send_attempts_total{channel,provider,result}
+	•	delivery_send_latency_ms_bucket{channel,provider} (histogram)
+	•	delivery_retry_scheduled_total{channel,provider}
+	•	delivery_dlq_total{channel,provider,reason}
+	•	delivery_throttle_block_total{scope=provider|channel|user}
+	•	delivery_idempotency_dedup_total{channel}
+
+Логи (структурированные)
+
+Поля минимум:
+	•	task_id, notification_id, user_id, channel, provider, attempt, status
+	•	idempotency_key, dedupe_key
+	•	error_code, retryable, http_status, latency_ms
+	•	trace_id, span_id
+
+Трейсинг (OpenTelemetry)
+	•	Span: delivery.process_task
+	•	attributes: channel, provider, attempt, result
+	•	Span: provider.send
+	•	attributes: provider, http_status, error_code
+
+Алерты (пример)
+	•	DLQ rate > N/min (per channel/provider)
+	•	Error rate (retryable+permanent) > X% за 5 минут
+	•	P95 latency provider.send > threshold
+	•	Throttle blocks резко выросли (возможен лимит/бан провайдера)
+
+⸻
+
+8) Mermaid диаграмма (sequence)
+
+sequenceDiagram
+  autonumber
+  participant NO as Notification Orchestrator
+  participant Q as DeliveryQueue
+  participant DW as Delivery Worker
+  participant R as Redis (Idem+Throttle)
+  participant P as Provider Adapter
+  participant DB as Postgres
+  participant DLQ as Dead Letter Queue
+
+  NO->>DB: INSERT delivery_tasks(status=QUEUED, attempt=0)
+  NO->>Q: Publish DeliveryTaskEnqueue
+
+  DW->>Q: Consume task
+  DW->>DB: Load task by task_id
+  DW->>DW: Check expires_at
+  alt expired
+    DW->>DB: UPDATE status=FAILED_PERMANENT, last_error=EXPIRED
+    DW->>Q: Ack
+  else not expired
+    DW->>R: SETNX idempotency_key
+    alt duplicate
+      DW->>Q: Ack (already processed)
+    else first time
+      DW->>R: Acquire throttle tokens
+      alt throttled
+        DW->>DB: UPDATE status=QUEUED, scheduled_at=now+delay
+        DW->>Q: Requeue/Delay
+      else allowed
+        DW->>DB: CAS UPDATE status=SENDING, attempt=attempt+1
+        DW->>P: Send(payload,destination)
+        alt success
+          DW->>DB: UPDATE status=SENT, provider_message_id
+          DW->>Q: Ack
+        else error
+          DW->>DW: Classify retryable?
+          alt non-retryable
+            DW->>DB: UPDATE status=FAILED_PERMANENT, last_error
+            DW->>Q: Ack
+          else retryable
+            DW->>DW: Compute backoff + jitter
+            alt attempts left
+              DW->>DB: UPDATE status=FAILED_RETRYABLE, next_attempt_at
+              DW->>Q: Requeue/Delay
+            else no attempts left
+              DW->>DB: UPDATE status=DLQ, last_error
+              DW->>DLQ: Publish DeliveryTaskDLQ
+              DW->>Q: Ack
+            end
+          end
+        end
+      end
+    end
+  end
 
 
 ### DoR v2.0
 
-TODO: Улучшите DoR до версии 2.0 (что добавили и почему).
+DoR 2.0 для WeatherService (v2) — чеклист (10 пунктов)
+	1.	User Story + Acceptance Criteria (Gherkin)
+
+	•	Есть 1 user story + минимум 3 AC, покрывающих: создание подписки, подтверждение контакта/канала, доставку уведомления, обработку ошибок (например, провайдер недоступен, лимит).
+	•	Почему добавили/изменили: в текущем DoR AC есть, но часто не фиксируют негативные сценарии и “definition of done” по доставке (retry/DLQ), из-за чего невозможно закрыть задачу без споров.
+
+	2.	Карта состояний подписки и доставки (State Machine)
+
+	•	Подписка: DRAFT -> PENDING_CONFIRMATION -> ACTIVE -> PAUSED -> CANCELED.
+	•	Доставка: QUEUED -> SENDING -> SENT -> FAILED_RETRYABLE -> FAILED_PERMANENT -> DLQ (+ DELIVERED если есть callback).
+	•	Для каждого перехода указан триггер и запреты (например, нельзя ACTIVE без confirmed channel).
+	•	Почему добавили: без формальной state machine разработка упирается в неочевидные переходы/краевые случаи (повторное подтверждение, пауза, TTL).
+
+	3.	Нефункциональные требования (SLA/SLO, TTL, объёмы, лимиты)
+
+	•	Чётко зафиксированы: целевой SLA доставки (например, p95 < 60s), TTL уведомлений, ожидаемый QPS/пики, лимиты на пользователя/город/канал, частота прогнозов.
+	•	Почему добавили: delivery pipeline зависит от нагрузочного профиля и TTL; без этого нельзя корректно выбрать backoff, throttling и размер очередей.
+
+	4.	Контракты API/Events: версия, совместимость, идемпотентность
+
+	•	Для REST и событий: версия (/v1), правила backward compatibility, обязательные поля (idempotency_key, dedupe_key, expires_at), error schema.
+	•	Семплы request/response + event payloads + webhook payloads (если есть).
+	•	Почему добавили/изменили: одного “описаны эндпоинты” недостаточно — отсутствие версии/идемпотентности блокирует реализацию retry и безопасные деплои.
+
+	5.	Интеграции: провайдеры + песочницы + матрица ошибок
+
+	•	Для каждого канала указан провайдер, sandbox/test mode, лимиты, типы ошибок и классификация retryable/non-retryable (таблица).
+	•	Почему добавили: без матрицы ошибок невозможно корректно реализовать политику retries/DLQ и стабильно тестировать.
+
+	6.	Данные и миграции: схема БД + ретеншн + DSR
+
+	•	Есть ERD/DDL для ключевых таблиц (subscriptions, contacts/consents, delivery_tasks, delivery_attempts), индексы, политики ретеншна (например, attempts 30 дней).
+	•	Процесс удаления/анонимизации (DSR) с влиянием на логи/трейсы.
+	•	Почему добавили/изменили: “соответствие и безопасность” без конкретики по ретеншну/индексам/миграциям блокирует реализацию и эксплуатацию.
+
+	7.	Feature flags + план релиза + rollback
+
+	•	Перечень флагов (каналы, retry, DLQ, throttling), стратегия включения (canary/percent rollout), критерии остановки, шаги rollback.
+	•	Почему добавили: для уведомлений ошибки дорогие; без плана поэтапного включения и rollback риск блокирует выкладку.
+
+	8.	Тест-план: unit/contract/integration/e2e + симуляции провайдеров
+
+	•	Чётко: что покрывается какими тестами; есть contract tests на API/events; e2e сценарии включают симуляции 429/5xx/timeout, проверку DLQ и requeue.
+	•	Почему добавили/изменили: “план e2e” без разбиения по уровням и симуляций не гарантирует качество delivery pipeline.
+
+	9.	Observability: SLI, алерты, дэшборды, correlation IDs
+
+	•	Определены SLI (delivery_rate, p95 send latency, DLQ rate, retry rate, throttle blocks), алерты с порогами, дэшборды, обязательные поля логов (task_id, notification_id, trace_id).
+	•	Почему добавили/изменили: текущий пункт про метрики есть, но без SLI/порогов и correlation IDs отладка инцидентов фактически невозможна.
+
+	10.	Операционные политики: runbooks, on-call, ручные операции
+
+	•	Runbook: что делать при росте DLQ, деградации провайдера, утечке токенов; описаны ручные команды/эндпоинты: requeue, pause channel, drain queue.
+	•	Почему добавили: отсутствие операционных процедур блокирует запуск в прод — команда не сможет безопасно сопровождать доставку.
+
+Если хочешь, могу сразу оформить это как шаблон DoR в виде Markdown-блока для репозитория (например, docs/dor_weather_v2.md) и добавить пример AC в Gherkin под твою текущую user story.
 
 
 ### DoD v2.0
 
-TODO: Улучшите DoD до версии 2.0 (что добавили и почему).
+DoD 2.0 — Подписки и Уведомления (WeatherService) (10 пунктов)
+	1.	Feature implemented + покрытие тестами (обновлено)
+
+	•	Backend: unit + integration (retry/DLQ/throttling/idempotency), контрактные тесты на события/провайдер-адаптеры.
+	•	Frontend: e2e сценарии подписка/подтверждение/управление + тестовое уведомление по каждому включённому каналу.
+	•	Что добавили и почему: добавили идемпотентность/throttling/contract tests, потому что без этого delivery pipeline ломается на ретраях и при изменении payload.
+
+	2.	API/Events контракты задокументированы и зафиксированы (обновлено)
+
+	•	OpenAPI для публичных endpoint’ов, схемы событий (versioned), примеры payload, правила backward compatibility.
+	•	Поля: idempotency_key, dedupe_key, expires_at, error schema — обязательны и описаны.
+	•	Что добавили и почему: добавили версионирование и правила совместимости, потому что без них релиз может сломать потребителей и ретраи.
+
+	3.	Релизные артефакты готовы: feature flags + план включения
+
+	•	Флаги по каналам/ретраям/DLQ/throttling, canary/percent rollout, критерии остановки, порядок включения.
+	•	Что добавили и почему: добавили релизную стратегию, потому что уведомления нельзя “включить всем сразу” без контроля риска.
+
+	4.	Rollback plan + критерии отката
+
+	•	Описано: какие флаги/конфиги откатываем первыми, как отключить провайдера/канал, как остановить consumer’ы, как сохранить данные.
+	•	Что добавили и почему: добавили явный rollback, потому что инциденты чаще всего связаны с провайдерами и их лимитами.
+
+	5.	Smoke/Release tests в staging и prod-ready прогон
+
+	•	Smoke suite: подписка → подтверждение → отправка тест-уведомления → проверка статусов, ретрая, DLQ (через симуляции 429/5xx/timeout).
+	•	Что добавили и почему: добавили обязательный smoke перед релизом, потому что unit/e2e без реальной интеграции не ловят ошибки конфигурации/секретов.
+
+	6.	Observability: SLI/SLO, алерты, дэшборды + корреляция
+
+	•	Дэшборды prod/staging: delivery_rate, p95 send latency, retry_rate, DLQ_rate, throttle_blocks.
+	•	Логи и трейсы содержат task_id, notification_id, user_id, trace_id.
+	•	Что добавили и почему: добавили retry_rate/throttle_blocks и correlation IDs, потому что без них невозможно быстро локализовать деградации.
+
+	7.	Операционные runbooks + ручные операции
+
+	•	Runbook: DLQ spike, provider outage, рост 429, утечка токенов; процедуры requeue, pause channel, drain queue.
+	•	Что добавили и почему: добавили runbooks, потому что без них on-call не сможет безопасно сопровождать релиз.
+
+	8.	Безопасность/Compliance (обновлено)
+
+	•	Consent/DSR проверены end-to-end; ретеншн delivery_attempts/логов определён и реализован; секреты в Vault, доступы по ролям.
+	•	Что добавили и почему: добавили ретеншн, потому что хранение попыток/контактов без сроков — блокер для продакшена.
+
+	9.	Производительность и лимиты подтверждены
+
+	•	Нагрузочный прогон: целевые QPS/пики, проверка backoff/cap, отсутствие лавины ретраев, соблюдение лимитов провайдера.
+	•	Что добавили и почему: добавили perf/лимиты, потому что без этого релиз может привести к бану у провайдера или росту DLQ.
+
+	10.	Документация и handoff (обновлено)
+
+	•	Обновлены CJM/roadmap, эксплуатационная документация, чеклист QA + post-release monitoring plan (что смотрим первые 24 часа).
+	•	Что добавили и почему: добавили post-release monitoring plan, потому что основная часть дефектов проявляется сразу после включения фичи.
 
 
 ### Edge Cases (*)
 
-TODO: (Опционально) 10 граничных случаев для v1.0/v1.1.
+| Case | Почему важно | Ожидаемое поведение | Как тестировать |
+|---|---|---|---|
+| 1) Двойное создание подписки (повторный POST из-за ретрая клиента) | Частая причина дублей и “двойной” рассылки | API идемпотентен: по `Idempotency-Key` возвращает тот же результат (200/201) без создания второй записи; подписка одна | Отправить 2 одинаковых запроса с одним `Idempotency-Key`; проверить 1 запись в БД и стабильный response |
+| 2) Гонка: subscribe и unsubscribe почти одновременно | Реальный кейс на мобильных сетях/двух вкладках | Конечное состояние соответствует последнему действию по времени/версии; нет “залипания” в промежуточном статусе | Запустить параллельно запросы subscribe/unsubscribe; проверить версионирование/ETag или optimistic lock; состояние корректно |
+| 3) Подписка в состоянии PENDING_CONFIRMATION, но уже пришёл триггер уведомления | Иначе уйдут уведомления на неподтверждённый канал (комплаенс) | Уведомления **не отправляются** до подтверждения; задача либо не создаётся, либо помечается `SKIPPED_UNCONFIRMED` | Создать подписку, не подтверждать; сгенерировать событие уведомления; убедиться, что нет delivery_tasks или статус SKIPPED |
+| 4) Истёкший токен/контакт (unregistered device, bounced email) | Иначе будет бесконечный retry/DLQ и рост затрат | Ошибка non-retryable: `FAILED_PERMANENT(UNREGISTERED_DEVICE/INVALID_DESTINATION)`; контакт/канал переводится в invalid/disabled | Подменить ответ провайдера на “unregistered”/bounce; убедиться, что ретраев нет, статус permanent, канал отключён |
+| 5) Провайдер отвечает 429 (rate limit) | Ключевой сценарий для throttling и backoff | Ошибка retryable: планируется retry с backoff + jitter; учитывается provider-level throttling; не превышаются лимиты | В тестовом адаптере вернуть 429 N раз; проверить расписание `next_attempt_at`, отсутствие burst, метрики throttle/retry |
+| 6) Провайдер timeout/5xx во время отправки | Самый частый источник DLQ | Retryable до `max_attempts`; после исчерпания — `DLQ`; идемпотентность предотвращает дубликаты при повторной обработке | Инжектить timeout/5xx; проверить количество попыток, DLQ, и что повторное потребление сообщения не отправляет повторно |
+| 7) Уведомление протухло по TTL (`expires_at`) до обработки очередью | Иначе пользователь получит устаревшую погоду | Если `now > expires_at` — `FAILED_PERMANENT(EXPIRED)` без отправки; задача ack | Создать delivery task с `expires_at` в прошлом; прогнать worker; убедиться, что провайдер не вызван |
+| 8) Дедупликация уведомлений в “окне” (одно и то же событие несколько раз) | Иначе спам/дубли на одинаковую погоду | По `dedupe_key` в окне (например 10 мин) повторная задача не создаётся или сливается | Сгенерировать одинаковые события дважды в пределах window; проверить 1 task/notification; Redis key TTL работает |
+| 9) Изменение подписок во время формирования пачки (snapshot consistency) | Без снимка можно отправить “частично по старым данным” | Оркестратор использует snapshot/версию: либо полностью по состоянию на T, либо повторяет подбор | Во время построения списка получателей менять подписку; проверить, что набор получателей соответствует одной консистентной версии |
+| 10) Ошибка рендера шаблона (missing i18n key / variable) | Иначе падение воркера или отправка “битого” текста | Ошибка non-retryable: `FAILED_PERMANENT(TEMPLATE_RENDER_ERROR)`; лог + метрика; не отправлять пустые поля | Удалить обязательную переменную из payload; проверить статус permanent, корректный `error_code`, отсутствие вызова провайдера |
 
 
 ## 5. Журнал промптов
@@ -754,10 +1259,30 @@ TODO: (Опционально) 10 граничных случаев для v1.0/
 
 *Результат:* Сгенерировался список из 8 Jira тикетов
 ---
+**Задача:** hw LLD (ChatGPT-5-mini)
+> Сделай LLD (Low-Level Design) для Epic Delivery Pipeline в WeatherService. Нужен Markdown с разделами:1) Цели и scope 2) Компоненты3) Контракты сообщений 4) Алгоритм обработки5) Схема БД 6) Ошибки и политики 7) Observability  8) Mermaid диаграмма sequence или flow Пиши без воды, с конкретными полями и статусами.
+
+*Результат:* Сгенерировался файл разделенный на указанные подпункты
+---
+**Задача:** hw DoR 2.0 (ChatGPT-5-mini)
+> Возьми текущий DoR для WeatherService и улучши до версии 2.0.  Требования: - Добавь недостающие пункты, которые блокируют разработку - Для каждого нового или измененного пункта укажи почему добавили в 1-2 предложениях. - Итог: 8–12 пунктов нового чеклиста
+
+*Результат:* Сгенерирован обновленный чеклист DoR 2.0
+---
+**Задача:** hw DoD 2.0 (ChatGPT-5-mini)
+> Возьми текущий DoD и обнови до версии 2.0 для WeatherService. - Добавь требования по релизу - Укажи что добавили и почему после каждого нового пункта (1 предложение). - Итог: 8–12 пунктов обновленного чеклиста
+
+*Результат:* Сгенерирован обновленный чеклист DoD 2.0
+---
+**Задача:** hw Edge Cases (ChatGPT-5-mini)
+> Дай 10 edge cases для WeatherService (v1.0/v1.1) по подпискам и уведомлениям. Сделай таблицу (case -> почему важно -> ожидаемое поведение -> как тестировать)
+
+*Результат:* Сгенерирована таблица из 10 edge cases для тестирования
+---
 
 ## 6. Рефлексия
 
-**Инсайт:** TODO: Главный инсайт практики.
+**Инсайт:** Промптинг без примеров часто даёт много шума, модель часто галлюцинирует. При этом всё равно способна дать хороший костяк для дальнейшей работы, и так гораздо проще, чем собирать всё с чистого листа.
 
-**Критика AI:** TODO: Что AI сделал плохо? Где он ошибся в планировании?
+**Критика AI:** Хорошо были сгенерированы все артефакты, но в планировании не учитывался масштаб проекта на текущем этапе, возможно не хватило контекста. Все ответы нужно тщательно валидировать, иначе получится большой, красивый, но нереалистичный план.
 
