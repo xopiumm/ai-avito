@@ -1,0 +1,12 @@
+{
+  "name": "github-issues",
+  "source": "github-awesome-copilot",
+  "description": "Create, update, and manage GitHub issues using MCP tools.",
+  "description_ko": "GitHub 이슈 및 워크플로우 관리",
+  "whenToUse": "Manage GitHub issues using the `@modelcontextprotocol/server-github` MCP server.",
+  "categories": [
+    "github",
+    "project-management"
+  ],
+  "installedAt": "2026-03-13T07:38:08.709Z"
+}

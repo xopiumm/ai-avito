@@ -1,0 +1,9 @@
+{
+  "name": "brainstorming",
+  "source": "obra-superpowers",
+  "description": "You MUST use this before any creative work - creating features, building components, adding functionality, or modifying behavior. Explores user intent, requirements and design before implementation.",
+  "description_ko": "브레인스토밍",
+  "whenToUse": "Help turn ideas into fully formed designs and specs through natural collaborative dialogue.",
+  "categories": [],
+  "installedAt": "2026-03-13T07:38:20.526Z"
+}

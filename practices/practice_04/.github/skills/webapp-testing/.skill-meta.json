@@ -1,0 +1,11 @@
+{
+  "name": "webapp-testing",
+  "source": "github-awesome-copilot",
+  "description": "Toolkit for interacting with and testing local web applications using Playwright.",
+  "description_ko": "Web 애플리케이션 테스트",
+  "whenToUse": "This skill enables comprehensive testing and debugging of local web applications using Playwright automation.",
+  "categories": [
+    "testing"
+  ],
+  "installedAt": "2026-03-13T07:38:00.306Z"
+}
