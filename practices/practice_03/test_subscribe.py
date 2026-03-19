@@ -45,10 +45,12 @@ OWM_HELSINKI = {
 
 @pytest.fixture(autouse=True)
 def clear_subscriptions():
-    """Сбрасывает in-memory хранилище перед каждым тестом."""
+    """Сбрасывает in-memory хранилища перед каждым тестом."""
     main_module._subscriptions.clear()
+    main_module._subscription_ids.clear()
     yield
     main_module._subscriptions.clear()
+    main_module._subscription_ids.clear()
 
 
 @pytest.fixture()
@@ -286,3 +288,187 @@ class TestPostSubscribe:
         )
 
         assert "store@example.com:helsinki" in main_module._subscriptions
+
+
+class TestGetSubscriptions:
+
+    def test_get_subscriptions_empty_list(self, client):
+        """GET /subscriptions без данных возвращает пустой список."""
+        resp = client.get("/subscriptions")
+
+        assert resp.status_code == 200
+        assert resp.json() == []
+
+    @respx.mock
+    def test_get_subscriptions_returns_created_items(self, client):
+        """GET /subscriptions возвращает созданные подписки."""
+        respx.get("https://api.openweathermap.org/data/2.5/weather").mock(
+            return_value=httpx.Response(200, json=OWM_HELSINKI)
+        )
+
+        create_resp = client.post(
+            "/subscribe",
+            json={"email": "list@example.com", "city": "Helsinki"},
+        )
+        subscription_id = create_resp.json()["subscription_id"]
+
+        resp = client.get("/subscriptions")
+
+        assert resp.status_code == 200
+        assert len(resp.json()) == 1
+        assert resp.json()[0] == {
+            "subscription_id": subscription_id,
+            "email": "list@example.com",
+            "city": "Helsinki",
+            "notification_time": "morning",
+            "status": "pending",
+        }
+
+    @respx.mock
+    def test_get_subscriptions_filter_by_email(self, client):
+        """GET /subscriptions?email=... фильтрует по email."""
+        respx.get("https://api.openweathermap.org/data/2.5/weather").mock(
+            return_value=httpx.Response(200, json=OWM_HELSINKI)
+        )
+
+        client.post(
+            "/subscribe",
+            json={"email": "first@example.com", "city": "Helsinki"},
+        )
+        client.post(
+            "/subscribe",
+            json={"email": "second@example.com", "city": "Oslo"},
+        )
+
+        resp = client.get("/subscriptions", params={"email": "second@example.com"})
+
+        assert resp.status_code == 200
+        assert len(resp.json()) == 1
+        assert resp.json()[0]["email"] == "second@example.com"
+
+    @respx.mock
+    def test_get_subscriptions_filter_by_city_normalized(self, client):
+        """Фильтр city учитывает нормализацию пробелов и регистр."""
+        respx.get("https://api.openweathermap.org/data/2.5/weather").mock(
+            return_value=httpx.Response(200, json=OWM_HELSINKI)
+        )
+
+        client.post(
+            "/subscribe",
+            json={"email": "city@example.com", "city": "New   York"},
+        )
+
+        resp = client.get("/subscriptions", params={"city": "  new york  "})
+
+        assert resp.status_code == 200
+        assert len(resp.json()) == 1
+        assert resp.json()[0]["city"] == "New York"
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Тесты DELETE /subscribe/{id}
+# ══════════════════════════════════════════════════════════════════════════════
+
+class TestDeleteSubscribe:
+
+    @respx.mock
+    def test_delete_existing_subscription_200(self, client):
+        """DELETE /subscribe/{id} с существующим ID → 200 + message."""
+        respx.get("https://api.openweathermap.org/data/2.5/weather").mock(
+            return_value=httpx.Response(200, json=OWM_HELSINKI)
+        )
+
+        post_resp = client.post(
+            "/subscribe",
+            json={"email": "del@example.com", "city": "Helsinki"},
+        )
+        assert post_resp.status_code == 201
+        sub_id = post_resp.json()["subscription_id"]
+
+        delete_resp = client.delete(f"/subscribe/{sub_id}")
+
+        assert delete_resp.status_code == 200
+        body = delete_resp.json()
+        assert "message" in body
+        assert "del@example.com" in body["message"]
+
+    def test_delete_nonexistent_id_404(self, client):
+        """DELETE /subscribe/{id} с несуществующим ID → 404."""
+        resp = client.delete("/subscribe/00000000-0000-0000-0000-000000000000")
+
+        assert resp.status_code == 404
+        assert "not found" in resp.json()["detail"].lower()
+
+    @respx.mock
+    def test_delete_removes_from_store(self, client):
+        """После DELETE подписка удаляется из in-memory хранилища."""
+        respx.get("https://api.openweathermap.org/data/2.5/weather").mock(
+            return_value=httpx.Response(200, json=OWM_HELSINKI)
+        )
+
+        post_resp = client.post(
+            "/subscribe",
+            json={"email": "gone@example.com", "city": "Helsinki"},
+        )
+        sub_id = post_resp.json()["subscription_id"]
+
+        client.delete(f"/subscribe/{sub_id}")
+
+        assert "gone@example.com:helsinki" not in main_module._subscriptions
+        assert sub_id not in main_module._subscription_ids
+
+    @respx.mock
+    def test_delete_twice_second_is_404(self, client):
+        """Повторный DELETE того же ID → 404."""
+        respx.get("https://api.openweathermap.org/data/2.5/weather").mock(
+            return_value=httpx.Response(200, json=OWM_HELSINKI)
+        )
+
+        post_resp = client.post(
+            "/subscribe",
+            json={"email": "twice@example.com", "city": "Helsinki"},
+        )
+        sub_id = post_resp.json()["subscription_id"]
+
+        client.delete(f"/subscribe/{sub_id}")
+        resp = client.delete(f"/subscribe/{sub_id}")
+
+        assert resp.status_code == 404
+
+    @respx.mock
+    def test_delete_then_resubscribe_allowed(self, client):
+        """После DELETE можно снова подписаться на тот же email+city → 201."""
+        respx.get("https://api.openweathermap.org/data/2.5/weather").mock(
+            return_value=httpx.Response(200, json=OWM_HELSINKI)
+        )
+
+        post_resp = client.post(
+            "/subscribe",
+            json={"email": "resub@example.com", "city": "Helsinki"},
+        )
+        sub_id = post_resp.json()["subscription_id"]
+        client.delete(f"/subscribe/{sub_id}")
+
+        resp2 = client.post(
+            "/subscribe",
+            json={"email": "resub@example.com", "city": "Helsinki"},
+        )
+
+        assert resp2.status_code == 201
+
+    @respx.mock
+    def test_post_returns_subscription_id(self, client):
+        """POST /subscribe возвращает поле subscription_id."""
+        respx.get("https://api.openweathermap.org/data/2.5/weather").mock(
+            return_value=httpx.Response(200, json=OWM_HELSINKI)
+        )
+
+        resp = client.post(
+            "/subscribe",
+            json={"email": "idcheck@example.com", "city": "Helsinki"},
+        )
+
+        assert resp.status_code == 201
+        body = resp.json()
+        assert "subscription_id" in body
+        assert body["subscription_id"]  # непустое значение

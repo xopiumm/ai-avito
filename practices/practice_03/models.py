@@ -48,6 +48,7 @@ class SubscriptionRequest(BaseModel):
 class SubscriptionResponse(BaseModel):
     """Ответ на успешную подписку, включает текущую погоду."""
 
+    subscription_id: str
     email: str
     city: str
     country: str
@@ -57,3 +58,13 @@ class SubscriptionResponse(BaseModel):
     description: str
     wind_speed_mps: float
     message: str
+
+
+class SubscriptionListItem(BaseModel):
+    """Элемент списка для GET /subscriptions."""
+
+    subscription_id: str
+    email: str
+    city: str
+    notification_time: str
+    status: str

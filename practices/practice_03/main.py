@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import re
+import uuid
 from contextlib import asynccontextmanager
 from typing import Optional
 
@@ -15,6 +16,7 @@ from fastapi import FastAPI, HTTPException
 
 from models import (
     ErrorResponse,
+    SubscriptionListItem,
     SubscriptionRequest,
     SubscriptionResponse,
     WeatherResponse,
@@ -35,6 +37,8 @@ redis_client: Optional[aioredis.Redis] = None
 # ── In-memory хранилище подписок (ключ: "email:city") ────────────────────────
 # В production следует заменить на PostgreSQL.
 _subscriptions: dict[str, dict] = {}
+# Обратный индекс: subscription_id → ключ в _subscriptions
+_subscription_ids: dict[str, str] = {}
 
 
 @asynccontextmanager
@@ -220,11 +224,23 @@ async def subscribe(body: SubscriptionRequest) -> SubscriptionResponse:
     # Проверяем существование города и получаем погоду
     raw = await fetch_weather_from_owm(city_normalized)
 
-    _subscriptions[subscription_key] = {"email": email, "city": city_normalized}
-    logger.info("New subscription: email='%s', city='%s'", email, city_normalized)
+    sub_id = str(uuid.uuid4())
+    _subscriptions[subscription_key] = {
+        "email": email,
+        "city": city_normalized,
+        "id": sub_id,
+        "notification_time": "morning",
+        "status": "pending",
+    }
+    _subscription_ids[sub_id] = subscription_key
+    logger.info(
+        "New subscription: id='%s', email='%s', city='%s'",
+        sub_id, email, city_normalized,
+    )
 
     weather = parse_owm_response(raw)
     return SubscriptionResponse(
+        subscription_id=sub_id,
         email=email,
         city=weather.city,
         country=weather.country,
@@ -235,3 +251,86 @@ async def subscribe(body: SubscriptionRequest) -> SubscriptionResponse:
         wind_speed_mps=weather.wind_speed_mps,
         message=f"Subscribed successfully. You will receive daily weather updates for {weather.city}.",
     )
+
+
+@app.get(
+    "/subscriptions",
+    response_model=list[SubscriptionListItem],
+    responses={
+        200: {"description": "Список подписок"},
+    },
+    summary="Получить список подписок",
+)
+async def get_subscriptions(
+    email: Optional[str] = None,
+    city: Optional[str] = None,
+    status: Optional[str] = None,
+) -> list[SubscriptionListItem]:
+    """Возвращает список подписок с опциональной фильтрацией."""
+    city_normalized = normalize_city(city).lower() if city is not None else None
+
+    rows = []
+    for sub in _subscriptions.values():
+        sub_email = sub["email"]
+        sub_city = sub["city"]
+        sub_status = sub.get("status", "pending")
+
+        if email is not None and sub_email != email:
+            continue
+        if city_normalized is not None and sub_city.lower() != city_normalized:
+            continue
+        if status is not None and sub_status != status:
+            continue
+
+        rows.append(
+            SubscriptionListItem(
+                subscription_id=sub["id"],
+                email=sub_email,
+                city=sub_city,
+                notification_time=sub.get("notification_time", "morning"),
+                status=sub_status,
+            )
+        )
+
+    rows.sort(key=lambda item: (item.email, item.city, item.subscription_id))
+    return rows
+
+
+@app.delete(
+    "/subscribe/{subscription_id}",
+    status_code=200,
+    responses={
+        200: {"description": "Подписка успешно удалена"},
+        404: {"model": ErrorResponse, "description": "Подписка не найдена"},
+    },
+    summary="Удалить подписку по ID",
+)
+async def delete_subscription(subscription_id: str) -> dict:
+    """
+    Удаляет подписку по уникальному идентификатору.
+
+    - Возвращает 404, если подписка с указанным ID не существует.
+    - Возвращает 200 с сообщением при успешном удалении.
+    """
+    subscription_key = _subscription_ids.get(subscription_id)
+    if subscription_key is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Subscription '{subscription_id}' not found",
+        )
+
+    subscription = _subscriptions.pop(subscription_key)
+    del _subscription_ids[subscription_id]
+    logger.info(
+        "Subscription deleted: id='%s', email='%s', city='%s'",
+        subscription_id,
+        subscription["email"],
+        subscription["city"],
+    )
+
+    return {
+        "message": (
+            f"Subscription for '{subscription['email']}' and city"
+            f" '{subscription['city']}' has been deleted."
+        )
+    }
