@@ -43,12 +43,12 @@ from .exceptions import (
     WeatherAlertsException,
 )
 
+# Import services
+from .subscription_service import SubscriptionService
+
 __all__ = [
-    # Service classes - import on-demand to avoid circular dependencies
-    # "SubscriptionService",
-    # "ConditionEvaluationService",
-    # "ScheduleService",
-    # "NotificationOrchestrator",
+    # Service classes
+    "SubscriptionService",
     # Exceptions
     "WeatherAlertsException",
     "SubscriptionNotFound",

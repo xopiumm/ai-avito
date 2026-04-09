@@ -8,7 +8,7 @@ This module defines the core domain models using SQLAlchemy 2.0+:
 
 from datetime import datetime
 from enum import Enum as PyEnum
-from typing import List
+from typing import TYPE_CHECKING, List
 
 from sqlalchemy import (
     CheckConstraint,
@@ -25,6 +25,9 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.weather_alerts.config import Base
+
+if TYPE_CHECKING:
+    from src.weather_alerts.domain.models.location import Location
 
 
 # ============================================================================
@@ -177,6 +180,11 @@ class Subscription(Base):
     )
 
     # Relationships
+    location: Mapped["Location"] = relationship(
+        "Location",
+        back_populates="subscriptions",
+        lazy="selectin",
+    )
     conditions: Mapped[List["SubscriptionCondition"]] = relationship(
         "SubscriptionCondition",
         back_populates="subscription",

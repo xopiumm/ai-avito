@@ -1,5 +1,6 @@
 """Domain models for Weather Alerts."""
 
+from .location import Location
 from .subscription import (
     ConditionType,
     DeliveryChannel,
@@ -12,6 +13,7 @@ from .subscription import (
 )
 
 __all__ = [
+    "Location",
     "Subscription",
     "SubscriptionCondition",
     "DeliveryChannel",
