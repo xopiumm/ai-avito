@@ -138,3 +138,33 @@ class MissingTimezone(ScheduleValidationException):
     pass
 
 
+# ============================================================================
+# ORCHESTRATION EXCEPTIONS
+# ============================================================================
+
+
+class OrchestrationException(Exception):
+    """Base exception for orchestration errors."""
+
+    pass
+
+
+class InvalidForecastData(OrchestrationException):
+    """Forecast data is invalid or incomplete."""
+
+    pass
+
+
+class NoSubscriptionsFound(OrchestrationException):
+    """No subscriptions found for the location."""
+
+    pass
+
+
+class OrchestrationError(OrchestrationException):
+    """Unexpected error during orchestration."""
+
+    pass
+
+
+
