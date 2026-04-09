@@ -3,13 +3,27 @@
 This package contains the service layer, implementing business logic
 for domain operations:
 - SubscriptionService: Subscription lifecycle management
+- ConditionEvaluationService: Weather condition evaluation
 - Other services: Weather evaluation, delivery, etc. (to be implemented)
 
 Services use domain exceptions (not HTTP) for proper layering.
+
+Services are imported on-demand to avoid circular dependencies:
+    from src.weather_alerts.services.subscription_service import SubscriptionService
+    from src.weather_alerts.services.condition_evaluation_service import (
+        ConditionEvaluationService,
+        ConditionEvaluationResult,
+        MatchedCondition,
+        EventType,
+    )
 """
 
 from .exceptions import (
+    ConditionEvaluationError,
+    ConditionEvaluationException,
+    EmptyConditionSet,
     InvalidSubscriptionData,
+    InvalidWeatherData,
     LocationNotFound,
     SubscriptionAlreadyActive,
     SubscriptionAlreadyDeleted,
@@ -19,11 +33,14 @@ from .exceptions import (
     UnauthorizedSubscriptionAccess,
     WeatherAlertsException,
 )
-from .subscription_service import SubscriptionService
 
 __all__ = [
-    # Service classes
-    "SubscriptionService",
+    # Service classes - import on-demand to avoid circular dependencies
+    # "SubscriptionService",
+    # "ConditionEvaluationService",
+    # "ConditionEvaluationResult",
+    # "MatchedCondition",
+    # "EventType",
     # Exceptions
     "WeatherAlertsException",
     "SubscriptionNotFound",
@@ -34,4 +51,9 @@ __all__ = [
     "LocationNotFound",
     "InvalidSubscriptionData",
     "UnauthorizedSubscriptionAccess",
+    # Condition evaluation exceptions
+    "ConditionEvaluationException",
+    "InvalidWeatherData",
+    "EmptyConditionSet",
+    "ConditionEvaluationError",
 ]

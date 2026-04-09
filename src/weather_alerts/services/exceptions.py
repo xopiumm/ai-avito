@@ -57,3 +57,48 @@ class UnauthorizedSubscriptionAccess(WeatherAlertsException):
     """User is not authorized to access this subscription."""
 
     pass
+
+
+# ============================================================================
+# CONDITION EVALUATION EXCEPTIONS
+# ============================================================================
+
+
+class ConditionEvaluationException(WeatherAlertsException):
+    """Base exception for condition evaluation service."""
+
+    pass
+
+
+class InvalidWeatherData(ConditionEvaluationException):
+    """Weather forecast data is insufficient or invalid for evaluation.
+    
+    Raised when:
+    - Forecast object is None or incomplete
+    - Weather data is outside expected range
+    - Required fields are missing
+    """
+
+    pass
+
+
+class EmptyConditionSet(ConditionEvaluationException):
+    """Cannot evaluate subscription with no conditions.
+    
+    A subscription must have at least one condition to be evaluated.
+    """
+
+    pass
+
+
+class ConditionEvaluationError(ConditionEvaluationException):
+    """Unexpected error during condition evaluation.
+    
+    Raised for:
+    - Unknown condition types
+    - Data type mismatches
+    - Unexpected state combinations
+    """
+
+    pass
+
