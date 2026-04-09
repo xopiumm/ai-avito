@@ -254,7 +254,7 @@ Prerequisites:
 
 ## Application Startup Flow
 
-```
+```text
 1. ASGI Server (uvicorn) starts
    ↓
 2. FastAPI app initialized via create_app()
@@ -286,7 +286,7 @@ Prerequisites:
 
 ## Error Handling Architecture
 
-```
+```text
 HTTP Request
   ↓
 FastAPI Route Handler

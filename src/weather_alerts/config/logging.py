@@ -178,8 +178,10 @@ class JSONFormatter(logging.Formatter):
                 "type": record.exc_info[0].__name__,
                 "message": str(record.exc_info[1]),
             }
-            if record.exc_text:
-                log_obj["exception"]["traceback"] = record.exc_text
+            # Format the full traceback using formatException
+            traceback = self.formatException(record.exc_info)
+            if traceback:
+                log_obj["exception"]["traceback"] = traceback
         
         # Add all extra fields (dict-like LogRecord attributes)
         # LogRecord has standard attrs like 'name', 'msg', 'args', 'created', etc.

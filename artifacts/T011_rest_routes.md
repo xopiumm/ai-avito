@@ -1,6 +1,6 @@
 # T011: REST API Routes для управления подписками
 
-**Date:** 2025-04-10  
+**Date:** 2026-04-09  
 **Task:** Implement REST API routes for subscription management  
 **Status:** ✅ Complete
 

@@ -400,7 +400,7 @@ for pending in result.pending_requests:
 
 ## Unit Tests
 
-### Покрытие (35 тестов)
+### Покрытие (37 тестов)
 
 **Основной workflow (19 тестов)**:
 - ✅ Matching + allowed (send now)

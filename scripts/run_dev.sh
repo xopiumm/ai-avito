@@ -35,7 +35,7 @@ fi
 
 # Check if database is running (docker-compose)
 if command -v docker-compose &> /dev/null; then
-    if ! docker-compose ps | grep -q "postgres"; then
+    if ! docker-compose ps --filter "status=running" | grep -q "postgres"; then
         echo -e "${YELLOW}Starting PostgreSQL and Redis with docker-compose...${NC}"
         cd "$PROJECT_ROOT" && docker-compose up -d
         sleep 3

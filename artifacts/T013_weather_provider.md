@@ -37,7 +37,7 @@ Implemented Weather Provider adapter for external weather API integration with O
 
 #### Data Model
 
-```
+```text
 Forecast
 ├── location_id: int
 ├── current: CurrentWeather
@@ -76,7 +76,7 @@ Supported severe weather events:
 
 #### Exception Hierarchy
 
-```
+```text
 WeatherProviderException
 ├── WeatherProviderAuthError (401/403)
 ├── WeatherProviderNotFoundError (404)
@@ -198,7 +198,7 @@ finally:
 
 ## Test Results
 
-```
+```text
 ======================== test session starts ========================
 collected 19 items
 

@@ -32,6 +32,7 @@
 - **ENVIRONMENT** — Окружение (development, staging, production)
 
 ### API Configuration
+
 | Переменная | Значение по умолчанию | Назначение |
 |------------|----------------------|-----------|
 | API_HOST | 0.0.0.0 | Адрес привязки сервера |
@@ -43,6 +44,7 @@
 | API_REQUEST_TIMEOUT_SECONDS | 30 | Таймаут запросов в секундах |
 
 ### Database (PostgreSQL)
+
 | Переменная | Значение по умолчанию | Назначение |
 |------------|----------------------|-----------|
 | DB_URL | postgresql+asyncpg://weather_user:weather_pass@localhost:5432/weather_alerts | Строка подключения |
@@ -51,6 +53,7 @@
 | DB_MAX_OVERFLOW | 10 | Макс. дополнительных соединений |
 
 ### Redis
+
 | Переменная | Значение по умолчанию | Назначение |
 |------------|----------------------|-----------|
 | REDIS_URL | redis://localhost:6379/0 | Строка подключения |
@@ -58,6 +61,7 @@
 | REDIS_SOCKET_TIMEOUT | 5 | Таймаут сокета в секундах |
 
 ### Weather Provider (OpenWeatherMap)
+
 | Переменная | Значение по умолчанию | Назначение |
 |------------|----------------------|-----------|
 | WEATHER_PROVIDER_BASE_URL | https://api.openweathermap.org/data/2.5 | Base URL провайдера |
@@ -66,6 +70,7 @@
 | WEATHER_PROVIDER_RETRY_ATTEMPTS | 3 | Количество повторов |
 
 ### Email Delivery
+
 | Переменная | Значение по умолчанию | Назначение |
 |------------|----------------------|-----------|
 | EMAIL_PROVIDER_URL | https://api.mailgun.net | URL email-провайдера (Mailgun, SendGrid и т.д.) |
@@ -74,6 +79,7 @@
 | EMAIL_TIMEOUT_SECONDS | 10 | Таймаут запросов |
 
 ### Push Notification Delivery
+
 | Переменная | Значение по умолчанию | Назначение |
 |------------|----------------------|-----------|
 | PUSH_PROVIDER_URL | https://api.pushservice.local | URL push-провайдера (Firebase, OneSignal и т.д.) |
@@ -81,13 +87,15 @@
 | PUSH_TIMEOUT_SECONDS | 10 | Таймаут запросов |
 
 ### Webhook Delivery
+
 | Переменная | Значение по умолчанию | Назначение |
 |------------|----------------------|-----------|
 | WEBHOOK_DELIVERY_TIMEOUT_SECONDS | 30 | Таймаут webhook HTTP запросов |
 | WEBHOOK_MAX_RETRIES | 5 | Макс. количество повторов |
-| WEBHOOK_RETRY_BACKOFF_SECONDS | 1 | Inicial backoff для exponential backoff |
+| WEBHOOK_RETRY_BACKOFF_SECONDS | 1 | Initial backoff для exponential backoff |
 
 ### Celery Task Queue
+
 | Переменная | Значение по умолчанию | Назначение |
 |------------|----------------------|-----------|
 | CELERY_BROKER_URL | redis://localhost:6379/1 | Broker URL для очереди (Redis или RabbitMQ) |

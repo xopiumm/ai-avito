@@ -1,7 +1,7 @@
 # T018: Push Notification Delivery Adapter
 
 **Status**: ✅ Complete  
-**Tests**: 66 passing (30 + 26 extended)  
+**Tests**: 56 passing (30 + 26 extended)  
 **Location**: `src/weather_alerts/adapters/push_sender.py`
 
 ## Overview
@@ -491,7 +491,7 @@ Application updates device token status
 
 ## Testing Coverage
 
-### Test Categories (66 tests)
+### Test Categories (56 tests)
 - **Payload validation** (6 tests)
 - **Message validation** (7 tests)
 - **Result model** (5 tests)

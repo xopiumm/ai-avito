@@ -3,6 +3,7 @@
 Schemas for request/response serialization and validation.
 """
 
+import re
 from datetime import datetime
 from enum import Enum as PyEnum
 from typing import List, Literal, Optional, Union
@@ -238,20 +239,20 @@ class ScheduleSchema(BaseModel):
     @field_validator("active_from", "active_to")
     @classmethod
     def validate_time_format(cls, v: Optional[str]) -> Optional[str]:
-        """Validate time is in HH:MM format."""
+        """Validate time is in strict HH:MM format (00:00-23:59)."""
         if v is None:
             return v
 
         if not isinstance(v, str):
             raise ValueError("Time must be string in HH:MM format")
 
-        parts = v.split(":")
-        if len(parts) != 2:
-            raise ValueError("Time must be in HH:MM format")
+        # Enforce strict HH:MM format with exactly 2 digits for hour and minute
+        if not re.match(r'^\d{2}:\d{2}$', v):
+            raise ValueError("Time must be in HH:MM format (00:00–23:59)")
 
         try:
-            hour = int(parts[0])
-            minute = int(parts[1])
+            hour = int(v[0:2])
+            minute = int(v[3:5])
 
             if not (0 <= hour <= 23):
                 raise ValueError("Hour must be 0-23")
@@ -260,18 +261,18 @@ class ScheduleSchema(BaseModel):
         except ValueError as e:
             raise ValueError(f"Invalid time format: {e}")
 
-        return v.strip()
+        return v
 
     @model_validator(mode="after")
     def validate_schedule_window(self) -> "ScheduleSchema":
         """Validate schedule window is valid."""
         if self.active_from and self.active_to:
-            # Convert to comparable format
-            from_parts = self.active_from.split(":")
-            to_parts = self.active_to.split(":")
+            # Times are already validated to be in HH:MM format by field validator
+            from_hour, from_min = map(int, self.active_from.split(":"))
+            to_hour, to_min = map(int, self.active_to.split(":"))
 
-            from_mins = int(from_parts[0]) * 60 + int(from_parts[1])
-            to_mins = int(to_parts[0]) * 60 + int(to_parts[1])
+            from_mins = from_hour * 60 + from_min
+            to_mins = to_hour * 60 + to_min
 
             if from_mins >= to_mins:
                 raise ValueError(

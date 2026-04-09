@@ -130,7 +130,7 @@ await service.delete("user_123", 1)
 #### Контроль доступа
 
 ```python
-async def _authorize_user_subscription(user_id: str, subscription_id: int)
+async def _authorize_user_subscription(user_id: str, subscription_id: int):
     # Проверяет:
     ✅ Подписка существует
     ✅ Пользователь владеет подпиской
@@ -140,7 +140,7 @@ async def _authorize_user_subscription(user_id: str, subscription_id: int)
 ## Инварианты Системы (в коде задокументированы)
 
 ### 1. LIFECYCLE СТАТУСЫ
-```
+```text
 ACTIVE <--enable--> DISABLED
   |                    |
   +--delete--> DELETED
@@ -148,20 +148,20 @@ status != DELETED returned by list()
 ```
 
 ### 2. АВТОРИЗАЦИЯ
-```
+```text
 Каждая операция: проверка user_id владения
 UnauthorizedSubscriptionAccess на нарушение
 ```
 
 ### 3. УНИКАЛЬНОСТЬ ЛОКАЦИИ
-```
+```sql
 SELECT count(*) FROM subscriptions 
 WHERE user_id = ? AND location_id = ? AND status = 'ACTIVE' 
 должен быть <= 1 после create()
 ```
 
 ### 4. НЕПОЛНЫЕ ПОДПИСКИ
-```
+```text
 - Conditions: всегда >= 1 (не может быть пусто)
 - Channels: всегда >= 1 (не может быть пусто)
 Enforced at:
@@ -174,17 +174,17 @@ Enforced at:
 ```
 UpdateSubscriptionRequest(
     conditions=None,     # -> keep existing
-    channels=None,       # -> keep existing
+    delivery_channels=None,       # -> keep existing
     schedule=None        # -> keep existing
 )
 UpdateSubscriptionRequest(
     conditions=[...],    # -> replace all conditions
-    channels=[...],      # -> replace all channels
+    delivery_channels=[...],      # -> replace all channels
 )
 ```
 
 ### 6. SOFT DELETE
-```
+```text
 deleted_at timestamp set только при status=DELETED
 Data никогда не удаляется физически
 list() фильтрует status != DELETED

@@ -4,8 +4,7 @@ Provides endpoints for monitoring the health of the Weather Alerts API and
 its dependencies (PostgreSQL, Redis, Celery).
 
 Endpoints:
-  GET /health - Lightweight health status (for load balancers/k8s probes)
-  GET /health/detailed - Detailed health with component status and diagnostics
+  GET /health - Health status with detailed component diagnostics
 """
 
 import logging

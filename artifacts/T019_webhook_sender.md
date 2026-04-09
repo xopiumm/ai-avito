@@ -19,7 +19,7 @@ Key design principles mirror T017/T018:
 
 ### High-Level Flow
 
-```
+```text
 User Application
     ↓
 WebhookSender (main service)
@@ -103,7 +103,7 @@ HTTP_504_GATEWAY_TIMEOUT      # Retryable (timeout)
 #### 3. Exception Hierarchy
 
 **Retryable Errors** (is_retryable = True)
-```
+```python
 WebhookTimeoutError             # Request timeout
 WebhookConnectionError          # Cannot connect
 WebhookNetworkError             # Network issue
@@ -113,7 +113,7 @@ WebhookRateLimitError           # 429 rate limit (includes retry_after_seconds)
 ```
 
 **Non-Retryable Errors** (is_retryable = False)
-```
+```python
 InvalidWebhookUrlError          # Bad URL format
 AuthenticationFailedError       # 401 auth required
 WebhookForbiddenError           # 403 access denied
@@ -638,7 +638,16 @@ Weather alert webhook payload that can be sent to any HTTP endpoint:
 
 ## Dependencies
 
-**External**: None (uses Python stdlib only)
+**External**: None (core adapter runtime uses Python stdlib only)
+
+**Core External Dependencies**: None
+- The WebhookSender implementation requires no external libraries
+- All core functionality uses only Python standard library
+
+**Optional Example Dependencies**:
+- `requests` - Used in the example custom HTTP provider implementation (see "Real HTTP Provider Implementation" section below)
+  - Required only if you follow the example to implement a real HTTP-based webhook provider
+  - Not needed if you use the mock provider or implement your own provider using different libraries
 
 **Internal**:
 - `datetime` - UTC timestamp handling

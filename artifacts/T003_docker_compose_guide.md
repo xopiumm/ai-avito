@@ -59,7 +59,7 @@ docker-compose up -d
 ```
 
 **Вывод:**
-```
+```text
 Creating weather_alerts_postgres ... done
 Creating weather_alerts_redis   ... done
 ```
@@ -71,7 +71,7 @@ docker-compose ps
 ```
 
 **Ожидаемый вывод:**
-```
+```text
 NAME                       COMMAND                  SERVICE    STATUS              PORTS
 weather_alerts_postgres    "docker-entrypoint…"     postgres   Up (healthy)        0.0.0.0:5432->5432/tcp
 weather_alerts_redis       "redis-server --ap…"     redis      Up (healthy)        0.0.0.0:6379->6379/tcp
@@ -94,7 +94,7 @@ docker-compose exec postgres psql -U weather_user -d weather_alerts -c "SELECT n
 ```
 
 **Ожидаемый вывод:**
-```
+```text
               now              
 -------------------------------
  2026-04-09 12:34:56.123456+00
@@ -108,7 +108,7 @@ redis-cli -h localhost ping
 ```
 
 **Ожидаемый вывод:**
-```
+```text
 PONG
 ```
 
@@ -268,7 +268,9 @@ docker volume ls | grep weather_alerts
 1. Убедиться, что контейнеры запущены: `docker-compose ps`
 2. Убедиться, что healthcheck прошел: статус должен быть `Up (healthy)` или `Up`
 3. Проверить, не заблокирован ли firewall портам 5432 и 6379
-4. Убедиться что используются правильные хосты в подключении (localhost, не 127.0.0.1)
+4. Проверить хосты подключения в зависимости от контекста:
+   - **С хоста (из Python/приложения вне контейнера)**: используйте `localhost` или `127.0.0.1` для проброшенных портов — оба работают одинаково для подключения через порты 5432 и 6379
+   - **Внутри контейнера**: используйте имя сервиса из `docker-compose.yml` (например `postgres` или `redis`) или внутренний IP контейнера — не используйте localhost, так как каждый контейнер имеет свой localhost
 
 ## Roadmap
 

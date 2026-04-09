@@ -193,7 +193,45 @@ psql -U weather_user -d weather_alerts -c "\\dt"
 
 ## Интеграция с приложением
 
+### ⚠️ ВАЖНО: Миграции должны запускаться отдельно
+
+**Мигрирации НЕ должны запускаться автоматически при старте приложения!** Это может привести к race conditions в распределённых системах.
+
+**Правильный подход:**
+1. Запустить миграции `alembic upgrade head` как отдельный шаг деплоя/релиза
+2. В приложении только использовать уже готовую схему БД
+
+### Миграции как отдельный CLI шаг
+
+```bash
+# Перед деплоем: запустить миграции
+alembic upgrade head
+
+# Затем: запустить приложение
+python -m uvicorn src.weather_alerts.main:app
+```
+
 ### В app startup (main.py или lifespan)
+
+```python
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
+import logging
+
+logger = logging.getLogger(__name__)
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup
+    logger.info("Application starting. Ensure migrations are run: alembic upgrade head")
+    yield
+    # Shutdown
+    logger.info("Application shutting down")
+
+app = FastAPI(lifespan=lifespan)
+```
+
+### Альтернатива: CLI команда для миграций (если нужна автоматизация)
 
 ```python
 import asyncio
@@ -201,19 +239,12 @@ from alembic.config import Config
 from alembic import command
 
 async def apply_migrations():
-    """Apply pending migrations during app startup."""
+    """Apply pending migrations (call from CLI, not from app startup)."""
     alembic_cfg = Config("alembic.ini")
     command.upgrade(alembic_cfg, "head")
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    # Startup
-    await apply_migrations()
-    yield
-    # Shutdown
-    # cleanup...
-
-app = FastAPI(lifespan=lifespan)
+# В CLI или скрипте деплоя:
+# asyncio.run(apply_migrations())
 ```
 
 ## Env.py конфигурация
