@@ -22,9 +22,14 @@ from .exceptions import (
     ConditionEvaluationError,
     ConditionEvaluationException,
     EmptyConditionSet,
+    InvalidScheduleFormat,
     InvalidSubscriptionData,
+    InvalidTimeWindow,
     InvalidWeatherData,
     LocationNotFound,
+    MissingTimezone,
+    ScheduleException,
+    ScheduleValidationException,
     SubscriptionAlreadyActive,
     SubscriptionAlreadyDeleted,
     SubscriptionAlreadyDisabled,
@@ -38,9 +43,7 @@ __all__ = [
     # Service classes - import on-demand to avoid circular dependencies
     # "SubscriptionService",
     # "ConditionEvaluationService",
-    # "ConditionEvaluationResult",
-    # "MatchedCondition",
-    # "EventType",
+    # "ScheduleService",
     # Exceptions
     "WeatherAlertsException",
     "SubscriptionNotFound",
@@ -56,4 +59,10 @@ __all__ = [
     "InvalidWeatherData",
     "EmptyConditionSet",
     "ConditionEvaluationError",
+    # Schedule service exceptions
+    "ScheduleException",
+    "ScheduleValidationException",
+    "InvalidScheduleFormat",
+    "InvalidTimeWindow",
+    "MissingTimezone",
 ]

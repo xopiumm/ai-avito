@@ -102,3 +102,39 @@ class ConditionEvaluationError(ConditionEvaluationException):
 
     pass
 
+
+# ============================================================================
+# SCHEDULE SERVICE EXCEPTIONS
+# ============================================================================
+
+
+class ScheduleException(WeatherAlertsException):
+    """Base exception for schedule service."""
+
+    pass
+
+
+class ScheduleValidationException(ScheduleException):
+    """Schedule configuration is invalid."""
+
+    pass
+
+
+class InvalidScheduleFormat(ScheduleValidationException):
+    """Schedule time format is invalid (not HH:MM)."""
+
+    pass
+
+
+class InvalidTimeWindow(ScheduleValidationException):
+    """Time window configuration is invalid (start >= end)."""
+
+    pass
+
+
+class MissingTimezone(ScheduleValidationException):
+    """Timezone information is missing."""
+
+    pass
+
+
