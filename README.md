@@ -212,7 +212,76 @@ ITMO/
 - **CI/CD**: добавить в свой pipeline матрицу сборок и базовые проверки качества.
 - **Автоматизация**: улучшить свой workflow (N8N/Actions) — например, отправлять уведомление в чат/почту с заголовком тикета и ссылкой на него.
 
-## 🎓 Детали практик
+## �️ Weather Alerts API: Быстрый старт
+
+Полнофункциональный сервис управления подписками на погодные уведомления с поддержкой:
+- ✅ Многоканальной доставки (email, push, webhook)
+- ✅ Расписаний доставки (time windows)
+- ✅ Дедупликации уведомлений (12h window)
+- ✅ Обработки ошибок и retry logic
+- ✅ Полного test coverage (unit + integration)
+
+### Быстрый запуск (5 минут)
+
+```bash
+# 1️⃣ Подготовка
+git clone https://github.com/ai-course-avito/itmo-practice-xopiumm.git
+cd itmo-practice-xopiumm
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+
+# 2️⃣ Инфраструктура (PostgreSQL + Redis)
+docker-compose up -d
+
+# 3️⃣ Миграции БД
+alembic upgrade head
+
+# 4️⃣ Запуск (в 3 отдельных терминалах)
+# Терминал 1: API сервер
+uvicorn src.weather_alerts.api.main:app --reload --port 8000
+
+# Терминал 2: Celery worker (для доставки)
+celery -A src.weather_alerts.workers.celery_app worker --loglevel=info
+
+# Терминал 3: Тесты (опционально)
+pytest tests/ -v
+
+# 5️⃣ Результат
+# • API docs: http://localhost:8000/docs
+# • API health: http://localhost:8000/health
+# • All tests passing ✓
+```
+
+### Smoke-тест (создать подписку и проверить доставку)
+
+```bash
+# Создайте подписку
+curl -X POST http://localhost:8000/alerts/subscriptions \
+  -H "User-ID: test_user" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "location": {"id": 1},
+    "conditions": [{"type": "temperature_below", "threshold_value": -10}],
+    "delivery_channels": [
+      {"type": "email", "destination": "user@example.com", "active": true}
+    ],
+    "schedule": {
+      "active_from": "00:00",
+      "active_to": "23:59",
+      "timezone_source": "location"
+    }
+  }'
+
+# Проверьте список подписок
+curl -X GET http://localhost:8000/alerts/subscriptions \
+  -H "User-ID: test_user"
+
+# Проверьте логи Celery worker (должна пройти доставка)
+```
+
+**📚 Полная документация:** [specs/001-weather-alerts/quickstart.md](specs/001-weather-alerts/quickstart.md)
+
+## �🎓 Детали практик
 
 ### Practice 01: AI Planning Tools
 **Неделя 1: EJM Foundation**
