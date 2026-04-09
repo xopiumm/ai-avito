@@ -1,6 +1,6 @@
-"""Domain models and business logic entities."""
+"""Domain models for Weather Alerts."""
 
-from .models import (
+from .subscription import (
     ConditionType,
     DeliveryChannel,
     DeliveryChannelType,
