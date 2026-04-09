@@ -116,7 +116,6 @@ class Subscription(Base):
             "location_id",
             "status",
             name="uq_user_location_active_status",
-            sqlite_where="status != 'deleted'",
         ),
     )
 
@@ -183,14 +182,12 @@ class Subscription(Base):
         back_populates="subscription",
         cascade="all, delete-orphan",
         lazy="selectin",
-        comment="Weather conditions for this subscription (ANY logic)",
     )
     channels: Mapped[List["DeliveryChannel"]] = relationship(
         "DeliveryChannel",
         back_populates="subscription",
         cascade="all, delete-orphan",
         lazy="selectin",
-        comment="Delivery channels (email, push, webhook)",
     )
 
     def __repr__(self) -> str:

@@ -29,10 +29,8 @@ import logging
 from typing import Any, Dict
 
 from fastapi import FastAPI, Request, status
-from fastapi.exc_handlers import RequestValidationError
-from fastapi.exceptions import RequestValidationError as PydanticValidationError
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from pydantic import ValidationError
 
 from src.weather_alerts.api.routes import subscriptions_router
 from src.weather_alerts.config.database import close_db, init_db
@@ -182,10 +180,10 @@ def create_app() -> FastAPI:
     # EXCEPTION HANDLERS
     # ====================================================================
 
-    @app.exception_handler(PydanticValidationError)
+    @app.exception_handler(RequestValidationError)
     async def pydantic_validation_exception_handler(
         request: Request,
-        exc: PydanticValidationError,
+        exc: RequestValidationError,
     ) -> JSONResponse:
         """Handle Pydantic validation errors from request bodies.
 
