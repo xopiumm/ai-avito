@@ -26,16 +26,22 @@ For production:
 """
 
 import logging
+import time
 from typing import Any, Dict
 
 from fastapi import FastAPI, Request, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
-from src.weather_alerts.api.routes import subscriptions_router
+from src.weather_alerts.api.routes import (
+    subscriptions_router,
+    health_router,
+    metrics_router,
+)
 from src.weather_alerts.api.middleware.request_context import RequestContextMiddleware
 from src.weather_alerts.config.database import close_db, init_db
 from src.weather_alerts.config.logging import configure_logging, get_logger
+from src.weather_alerts.api.routes.health import set_startup_time
 
 # Logger for application events
 logger = get_logger(__name__)
@@ -112,13 +118,17 @@ def create_app() -> FastAPI:
         """Initialize application resources on startup.
 
         Called once when ASGI server starts. Responsible for:
-        1. Database connection setup
-        2. Table creation (dev only, use Alembic in prod)
-        3. Redis client initialization
-        4. Configuration validation
+        1. Set startup timestamp for uptime tracking
+        2. Database connection setup
+        3. Table creation (dev only, use Alembic in prod)
+        4. Redis client initialization
+        5. Configuration validation
 
         Errors during startup will prevent server from starting.
         """
+        # Set startup time for health check uptime calculation
+        set_startup_time(time.time())
+        
         logger.info("Starting Weather Alerts API...")
         try:
             # Initialize database (creates tables if they don't exist)
@@ -152,27 +162,22 @@ def create_app() -> FastAPI:
     # ROUTES
     # ====================================================================
 
-    # Include subscription management router
+    # Include main feature routers
     app.include_router(
         subscriptions_router,
         prefix="",  # Already prefixed in router as /alerts/subscriptions
     )
-
-    # ====================================================================
-    # SYSTEM ENDPOINTS
-    # ====================================================================
-
-    @app.get("/health", tags=["system"], summary="Health check")
-    async def health_check() -> Dict[str, str]:
-        """Health check endpoint for load balancers and monitoring.
-
-        Simple endpoint that returns 200 if the service is running.
-        Used by Kubernetes probes, load balancers, etc.
-
-        Returns:
-            {"status": "ok"} - Service is healthy
-        """
-        return {"status": "ok"}
+    
+    # Include health and metrics routers (system endpoints)
+    app.include_router(
+        health_router,
+        prefix="",  # Includes /health and /health/detailed
+    )
+    
+    app.include_router(
+        metrics_router,
+        prefix="",  # Includes /metrics and /metrics/health
+    )
 
     @app.get("/", tags=["system"], summary="API root")
     async def root() -> Dict[str, str]:
