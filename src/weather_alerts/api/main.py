@@ -33,10 +33,12 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from src.weather_alerts.api.routes import subscriptions_router
+from src.weather_alerts.api.middleware.request_context import RequestContextMiddleware
 from src.weather_alerts.config.database import close_db, init_db
+from src.weather_alerts.config.logging import configure_logging, get_logger
 
 # Logger for application events
-logger = logging.getLogger(__name__)
+logger = get_logger(__name__)
 
 
 # ============================================================================
@@ -76,10 +78,14 @@ def create_app() -> FastAPI:
     3. Exception handlers for all error types
     4. Route registration
     5. Health check endpoint
+    6. Structured logging and request context middleware
 
     Returns:
         Configured FastAPI instance ready for ASGI server
     """
+    # Configure structured logging (must be done before creating app)
+    configure_logging()
+    
     app = FastAPI(
         title="Weather Alerts API",
         description="Weather alerts subscription management service. "
@@ -89,6 +95,13 @@ def create_app() -> FastAPI:
         redoc_url="/redoc",
         openapi_url="/openapi.json",
     )
+
+    # ====================================================================
+    # MIDDLEWARE SETUP
+    # ====================================================================
+    # Request context middleware must be added BEFORE routes are defined
+    # It manages correlation IDs and async context for logging
+    app.add_middleware(RequestContextMiddleware)
 
     # ====================================================================
     # STARTUP/SHUTDOWN EVENTS
