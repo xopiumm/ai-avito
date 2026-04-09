@@ -37,8 +37,8 @@ async def get_redis_client() -> Redis:
     global _redis_client
     if _redis_client is None:
         settings = get_settings()
-        # Parse REDIS_URL and create async client
-        _redis_client = await aioredis.from_url(
+        # Parse REDIS_URL and create async client (from_url is synchronous, don't await)
+        _redis_client = aioredis.from_url(
             settings.redis.url,
             encoding="utf-8",
             decode_responses=True,  # Return strings instead of bytes
@@ -280,15 +280,16 @@ async def check_and_mark_duplicate(
     redis = get_redis_client()
     key = RedisKeyBuilder.dedup_key(user_id, subscription_id, channel, event_type)
     
-    # Check if key exists (means we already sent this notification)
-    exists = await redis.exists(key)
+    # Atomic check-and-set: SET only if key doesn't exist (NX), with TTL (EX)
+    # Returns True if SET succeeded (first occurrence), False if key already exists (duplicate)
+    was_set = await redis.set(
+        name=key,
+        value="1",
+        ex=RedisTTL.DEDUP_WINDOW_SECONDS,
+        nx=True,
+    )
     
-    if not exists:
-        # Mark as sent with 12-hour TTL
-        await redis.setex(key, RedisTTL.DEDUP_WINDOW_SECONDS, "1")
-        return False  # Not a duplicate, proceed with delivery
-    
-    return True  # Duplicate, skip
+    return not was_set  # Return True if duplicate (set failed), False if first occurrence
 
 
 # In services/pending_notification_service.py:

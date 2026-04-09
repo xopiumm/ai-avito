@@ -94,17 +94,22 @@ def upgrade() -> None:
         sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
         sa.ForeignKeyConstraint(["location_id"], ["locations.id"], name=op.f("fk_subscriptions_location_id")),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_subscriptions")),
-        sa.UniqueConstraint(
-            "user_id",
-            "location_id",
-            "status",
-            name=op.f("uq_user_location_active_status"),
-            sqlite_where="status != 'deleted'",
-        ),
     )
     op.create_index(op.f("ix_subscriptions_location_id"), "subscriptions", ["location_id"])
     op.create_index(op.f("ix_subscriptions_status"), "subscriptions", ["status"])
     op.create_index(op.f("ix_subscriptions_user_id"), "subscriptions", ["user_id"])
+    
+    # Partial/filtered unique index for soft-delete pattern:
+    # Ensures (user_id, location_id) uniqueness for active subscriptions (status != 'deleted')
+    # Works across PostgreSQL (native filtered index) and SQLite (sqlite_where)
+    op.create_index(
+        op.f("uq_user_location_active_status"),
+        "subscriptions",
+        ["user_id", "location_id"],
+        unique=True,
+        postgresql_where=sa.text("status != 'deleted'"),
+        sqlite_where="status != 'deleted'",
+    )
 
     # ========================================================================
     # Create subscription_conditions table
@@ -228,7 +233,10 @@ def upgrade() -> None:
 def downgrade() -> None:
     """Drop all created tables."""
 
-    # Drop enum types (if using PostgreSQL)
+    # Drop indexes explicitly (symmetric with upgrade)
+    op.drop_index(op.f("uq_user_location_active_status"), table_name="subscriptions")
+    
+    # Drop tables
     op.execute("DROP TABLE IF EXISTS delivery_channels CASCADE")
     op.execute("DROP TABLE IF EXISTS subscription_conditions CASCADE")
     op.execute("DROP TABLE IF EXISTS subscriptions CASCADE")

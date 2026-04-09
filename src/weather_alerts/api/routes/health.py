@@ -14,6 +14,7 @@ from typing import Dict, Any, Optional
 
 from fastapi import APIRouter, status as http_status
 from pydantic import BaseModel
+from sqlalchemy import text
 
 from src.weather_alerts.config.database import get_engine, get_session_factory
 from src.weather_alerts.config.redis import ping_redis, get_redis_client
@@ -84,9 +85,9 @@ async def check_database() -> ComponentHealth:
     try:
         engine = get_engine()
         
-        # Test connection by executing a simple query
+        # Test connection by executing a simple query (SQLAlchemy 2.x requires text() wrapper)
         async with engine.begin() as conn:
-            result = await conn.execute("SELECT 1")
+            result = await conn.execute(text("SELECT 1"))
             await result.scalar()
         
         latency = (time.time() - start_time) * 1000

@@ -190,6 +190,10 @@ class APISettings(BaseSettings):
         default=30,
         description="Default request timeout in seconds",
     )
+    allow_dev_auth: bool = Field(
+        default=False,
+        description="Allow dev mode authentication (returns test_user without token validation); only enable in development",
+    )
 
     model_config = SettingsConfigDict(env_prefix="API_")
 

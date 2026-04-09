@@ -430,28 +430,33 @@ class EmailSender:
             # Send via provider
             result = self.provider.send(message)
             
-            # Log result
-            if result.success:
-                self.logger.info(
-                    f"Email sent successfully to {result.recipient}",
-                    extra={
-                        "message_id": result.message_id,
-                        "recipient": result.recipient,
-                        **result.metadata,
-                    }
-                )
-            else:
-                log_level = logging.WARNING if result.is_retryable else logging.ERROR
-                self.logger.log(
-                    log_level,
-                    f"Email send failed: {result.error_message}",
-                    extra={
-                        "error_code": result.error_code,
-                        "is_retryable": result.is_retryable,
-                        "recipient": result.recipient,
-                        **result.metadata,
-                    }
-                )
+            # Log result (swallow logging failures to avoid changing delivery status)
+            try:
+                if result.success:
+                    self.logger.info(
+                        f"Email sent successfully to {result.recipient}",
+                        extra={
+                            "message_id": result.message_id,
+                            "recipient": result.recipient,
+                            **result.metadata,
+                        }
+                    )
+                else:
+                    log_level = logging.WARNING if result.is_retryable else logging.ERROR
+                    self.logger.log(
+                        log_level,
+                        f"Email send failed: {result.error_message}",
+                        extra={
+                            "error_code": result.error_code,
+                            "is_retryable": result.is_retryable,
+                            "recipient": result.recipient,
+                            **result.metadata,
+                        }
+                    )
+            except Exception as log_err:
+                # Logging failed, but don't let it change the delivery outcome
+                # Silently ignore to preserve the original result
+                pass
             
             return result
             
@@ -467,10 +472,15 @@ class EmailSender:
                 is_retryable=True,
                 metadata=message.metadata,
             )
-            self.logger.warning(
-                f"Retryable email error: {e.error_code}",
-                extra={"recipient": message.to, **message.metadata}
-            )
+            # Log failure (swallow logging failures to preserve result status)
+            try:
+                self.logger.warning(
+                    f"Retryable email error: {e.error_code}",
+                    extra={"recipient": message.to, **message.metadata}
+                )
+            except Exception:
+                # Logging failed, but always return the constructed result
+                pass
             return result
             
         except NonRetryableEmailError as e:
@@ -485,10 +495,15 @@ class EmailSender:
                 is_retryable=False,
                 metadata=message.metadata,
             )
-            self.logger.error(
-                f"Non-retryable email error: {e.error_code}",
-                extra={"recipient": message.to, **message.metadata}
-            )
+            # Log failure (swallow logging failures to preserve result status)
+            try:
+                self.logger.error(
+                    f"Non-retryable email error: {e.error_code}",
+                    extra={"recipient": message.to, **message.metadata}
+                )
+            except Exception:
+                # Logging failed, but always return the constructed result
+                pass
             return result
             
         except Exception as e:
@@ -503,10 +518,15 @@ class EmailSender:
                 is_retryable=True,  # Conservative: retry on unknown errors
                 metadata=message.metadata,
             )
-            self.logger.error(
-                f"Unknown email error: {type(e).__name__}: {e}",
-                extra={"recipient": message.to, **message.metadata}
-            )
+            # Log failure (swallow logging failures to preserve result status)
+            try:
+                self.logger.error(
+                    f"Unknown email error: {type(e).__name__}: {e}",
+                    extra={"recipient": message.to, **message.metadata}
+                )
+            except Exception:
+                # Logging failed, but always return the constructed result
+                pass
             return result
     
     def _validate_message(self, message: EmailMessage) -> None:

@@ -100,6 +100,10 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
         request_path = request.url.path
         source = request.headers.get(self.SOURCE_HEADER, "api")
         
+        # Initialize response to None (call_next may raise before assignment)
+        response: Optional[Response] = None
+        start_time = time.time()
+        
         try:
             # Set context variables (available to all async operations in this request)
             set_correlation_id(correlation_id)
@@ -111,9 +115,6 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
             request.state.correlation_id = correlation_id
             request.state.user_id = user_id
             request.state.source = source
-            
-            # Track request timing
-            start_time = time.time()
             
             logger.debug(
                 "Request started",
@@ -153,11 +154,12 @@ class RequestContextMiddleware(BaseHTTPMiddleware):
             raise
             
         finally:
-            # Add correlation ID to response headers for client tracking
-            response.headers[self.CORRELATION_ID_HEADER] = correlation_id
-            
-            # Optional: Include in response body for client convenience
-            # response.headers["X-Request-Duration-Ms"] = str(duration_ms)
+            # Add correlation ID to response headers for client tracking (only if response exists)
+            if response is not None:
+                response.headers[self.CORRELATION_ID_HEADER] = correlation_id
+                
+                # Optional: Include in response body for client convenience
+                # response.headers["X-Request-Duration-Ms"] = str(duration_ms)
             
             # Clear context to prevent leakage to next request
             clear_context()

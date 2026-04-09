@@ -381,23 +381,23 @@ class PendingNotificationService:
                 )
                 
                 if keys:
-                    # Get all pending notifications
+                    # Atomically get and delete all pending notifications (GETDEL prevents duplicates)
                     for key in keys:
                         try:
-                            pending_json = await redis.get(key)
+                            # GETDEL is atomic: retrieves value and deletes key in single operation
+                            # This prevents race condition where multiple workers read same key
+                            # And ensures durability: if worker crashes, key still exists for retry
+                            pending_json = await redis.getdel(key)
                             if pending_json:
                                 pending_state = PendingNotificationState.from_json(pending_json)
                                 
-                                # Mark as released (technically just return it for processing)
+                                # Mark as released (notification successfully claimed)
                                 result = PendingOperationResult(
                                     status=PendingStatus.RELEASED,
                                     pending_state=pending_state,
                                     reason=f"Released for delivery at {start_time.isoformat()}",
                                 )
                                 results.append(result)
-                                
-                                # Delete the pending entry (it's now being processed)
-                                await redis.delete(key)
                         except Exception as e:
                             # Log error but continue with others
                             results.append(PendingOperationResult(

@@ -12,7 +12,7 @@
 |-------|--------|-----------|
 | **fastapi** | 0.104.1 | REST API framework с async поддержкой |
 | **uvicorn** | 0.24.0 | ASGI server для запуска FastAPI |
-| **python-multipart** | 0.0.6 | Парсинг multipart/form-data |
+| **python-multipart** | 0.0.22 | Парсинг multipart/form-data (CVE fix) |
 
 ### Configuration & Validation
 

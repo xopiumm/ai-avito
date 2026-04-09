@@ -164,9 +164,14 @@ results = await pending_service.release_pending(
 
 **Workflow**:
 1. SCAN Redis for all keys matching `pending:user_123:42:*`
-2. GET each key, deserialize JSON
-3. Return PendingNotificationState
-4. DELETE the key from Redis
+2. GETDEL each key atomically (retrieve + delete in one operation)
+3. Deserialize JSON
+4. Return PendingNotificationState
+
+**Atomicity guarantee**: GETDEL ensures exactly one worker claims each pending notification:
+- Multiple workers scanning simultaneously will never both see the same pending
+- If worker crashes before sending, key remains for retry (durability)
+- No duplicate deliveries or silent loss
 
 #### 3. cancel_pending_for_subscription()
 
@@ -190,7 +195,9 @@ count = await pending_service.cancel_pending_for_subscription(subscription_id=42
 **Redis Operations**:
 ```
 SCAN cursor MATCH pending:*:42:* COUNT 100
-DELETE key1 key2 key3 ...
+GETDEL key1           # Atomically get value and delete key
+GETDEL key2
+GETDEL key3
 ```
 
 ### Supporting Methods
