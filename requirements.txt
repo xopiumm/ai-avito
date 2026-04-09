@@ -1,45 +1,56 @@
-# Обучающие практики ИТМО - все зависимости для курса
+# ============================================================================
+# RUNTIME DEPENDENCIES - Weather Alerts Service
+# ============================================================================
 
-# Практики 1-2: AI Planning & Prompt Engineering (LLM-based)
-# - Использует ChatGPT/Claude/Gemini через API
-# - Дополнительных зависимостей не требуется
+# Web Framework & Server
+fastapi==0.104.1          # REST API framework
+uvicorn[standard]==0.24.0 # ASGI server with async/websocket support
+python-multipart==0.0.22  # For form data parsing (CVE remediation)
 
-# Практика 3: Coding Agents (FastAPI + Cursor AI)
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-pydantic==2.5.0
-python-multipart==0.0.6
+# Configuration Management
+pydantic==2.5.0           # Data validation and settings management
+pydantic-settings==2.1.0  # Pydantic configuration from environment
+python-dotenv==1.0.0      # Load .env files
 
-# Практика 4: MCP + Weather API Integration
-httpx==0.25.2
-python-dotenv==1.0.0
-pydantic-settings==2.1.0
+# Database & ORM
+sqlalchemy>=2.0.0         # SQL toolkit and ORM for async operations
+asyncpg>=0.29.0           # Async PostgreSQL driver (recommended by SQLAlchemy)
+psycopg2-binary>=2.9.0    # PostgreSQL adapter (for migrations and sync ops)
+alembic>=1.13.0           # Database schema migrations
 
-# Практика 5: Orchestrators (N8N) - будет добавлено позже
-# Практика 6: AI Testing - будет добавлено позже
-# Практика 7: CI/CD - будет добавлено позже
-# Практика 8: Final Project - будет добавлено позже
+# Cache & Async Task Queue
+redis>=5.0.0              # Redis client for deduplication and caching
+celery>=5.3.0             # Distributed task queue for background jobs
 
-# Тестирование (для всех практик)
-pytest>=7.0.0
-pytest-cov>=4.0.0
-pytest-asyncio>=0.21.1
+# HTTP Client
+httpx>=0.25.2             # Async HTTP client for external integrations
 
-# Линтинг и форматирование кода
-flake8>=6.0.0
-black>=23.0.0
-isort>=5.12.0
+# CLI & Utilities
+click>=8.1.0              # Command-line interface creation
 
-# Дополнительные утилиты (опционально для бонусных заданий)
-sqlmodel>=0.0.16  # Для персистентности данных
-websockets>=12.0   # Для WebSocket уведомлений
-click>=8.1.0       # Для CLI утилит
+# ============================================================================
+# DEV & TEST DEPENDENCIES
+# ============================================================================
 
-# Образовательные инструменты (для демонстраций)
-numpy>=1.24.0
-pandas>=2.0.0
-matplotlib>=3.7.0
-jupyter>=1.0.0
-ipykernel>=6.0.0
-flask>=2.3.0
-sqlalchemy>=2.0.0
+# Testing Framework
+pytest>=7.0.0             # Test runner
+pytest-asyncio>=0.21.1    # Async test support
+pytest-cov>=4.0.0         # Code coverage reporting
+
+# Code Quality & Linting
+flake8>=6.0.0             # Code linter
+black>=23.0.0             # Code formatter
+isort>=5.12.0             # Import statement sorter
+
+# ============================================================================
+# OPTIONAL EDUCATIONAL TOOLS (for other practices, not required for Weather Alerts)
+# ============================================================================
+
+sqlmodel>=0.0.16          # Hybrid ORM combining Pydantic + SQLAlchemy
+websockets>=12.0          # WebSocket support for real-time notifications
+numpy>=1.24.0             # Numerical computing
+pandas>=2.0.0             # Data analysis
+matplotlib>=3.7.0         # Data visualization
+jupyter>=1.0.0            # Interactive notebooks
+ipykernel>=6.0.0          # Jupyter kernel
+flask>=2.3.0              # Alternative web framework
