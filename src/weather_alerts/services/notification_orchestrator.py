@@ -5,18 +5,28 @@ This is the main orchestration layer that coordinates the workflow:
 2. Find subscriptions matching the location
 3. Evaluate weather conditions against each subscription
 4. Check delivery schedule (local time window)
-5. Prepare notifications for delivery or pending
+5. Check deduplication (prevent duplicates within 12h window per channel)
+6. Prepare notifications for delivery or pending
 
-High-level orchestration flow (without deduplication or retries):
+Orchestration flow with deduplication (T020 integration):
 - Condition matching uses ConditionEvaluationService (T014)
 - Schedule checking uses ScheduleService (T015)
+- Deduplication checking uses DeduplicationService (T020)
 - Results are prepared for Delivery Service (to be implemented)
 - Pending notifications are prepared for Pending Manager (to be implemented)
+
+Deduplication integration (T021):
+- Dedup gate is placed BEFORE sending (see _prepare_notifications_for_sending)
+- Each channel is checked independently for duplicates
+- Dedup window: 12 hours per (user, subscription, channel, event_type)
+- First occurrence → send, marked in Redis
+- Duplicate within 12h → skip, no send
+- After 12h → can send again (TTL expires)
 
 This service is testable and extensible:
 - Pure business logic (no I/O except data dependencies)
 - Clear separation of steps
-- Prepared for future additions (dedup, retries, delivery)
+- Prepared for future additions (retries, delivery)
 """
 
 from dataclasses import dataclass, field
@@ -39,6 +49,10 @@ from src.weather_alerts.services.schedule_service import (
     ScheduleService,
     ScheduleCheckResult,
     ScheduleStatus,
+)
+from src.weather_alerts.services.deduplication_service import (
+    DeduplicationService,
+    DuplicationStatus,
 )
 
 
@@ -205,17 +219,20 @@ class NotificationOrchestrator:
         self,
         condition_service: Optional[ConditionEvaluationService] = None,
         schedule_service: Optional[ScheduleService] = None,
+        deduplication_service: Optional[DeduplicationService] = None,
     ):
         """Initialize orchestrator with required services.
         
         Args:
             condition_service: Service for evaluating weather conditions
             schedule_service: Service for checking delivery schedules
+            deduplication_service: Service for deduplication (T020)
         """
         self.condition_service = condition_service or ConditionEvaluationService()
         self.schedule_service = schedule_service or ScheduleService()
+        self.deduplication_service = deduplication_service or DeduplicationService()
     
-    def orchestrate_notifications(
+    async def orchestrate_notifications(
         self,
         location_id: int,
         subscriptions: List[Subscription],
@@ -240,6 +257,7 @@ class NotificationOrchestrator:
             - Only evaluates ACTIVE subscriptions
             - Each subscription produces 0+ prepared notifications
             - Each channel is a separate notification
+            - Deduplication is checked per channel (T021)
             - Performance targets <1 min (NFR-001)
         """
         if evaluation_time_utc is None:
@@ -257,9 +275,9 @@ class NotificationOrchestrator:
         active_subscriptions = self._filter_active_subscriptions(subscriptions)
         result.metrics.subscriptions_evaluated = len(active_subscriptions)
         
-        # Step 2: Process each subscription
+        # Step 2: Process each subscription (now async for dedup checks)
         for subscription in active_subscriptions:
-            self._process_subscription(
+            await self._process_subscription(
                 subscription=subscription,
                 forecast=forecast,
                 evaluation_time_utc=evaluation_time_utc,
@@ -292,7 +310,7 @@ class NotificationOrchestrator:
         ]
         return active
     
-    def _process_subscription(
+    async def _process_subscription(
         self,
         subscription: Subscription,
         forecast: Forecast,
@@ -305,7 +323,7 @@ class NotificationOrchestrator:
         1. Evaluate weather conditions
         2. If conditions match:
            a. Check delivery schedule
-           b. If allowed → prepare for sending
+           b. If allowed → check deduplication, then prepare for sending (T021)
            c. If blocked → prepare for pending
         3. If conditions don't match → skip
         """
@@ -340,7 +358,8 @@ class NotificationOrchestrator:
         # Step 4: Process based on schedule status
         if schedule_result.is_allowed:
             result.metrics.subscriptions_allowed += 1
-            self._prepare_notifications_for_sending(
+            # T021: Dedup check happens in _prepare_notifications_for_sending
+            await self._prepare_notifications_for_sending(
                 subscription=subscription,
                 condition_result=condition_result,
                 send_at_utc=evaluation_time_utc,
@@ -356,7 +375,7 @@ class NotificationOrchestrator:
                 result=result,
             )
     
-    def _prepare_notifications_for_sending(
+    async def _prepare_notifications_for_sending(
         self,
         subscription: Subscription,
         condition_result: ConditionEvaluationResult,
@@ -365,7 +384,22 @@ class NotificationOrchestrator:
     ) -> None:
         """Prepare notifications to send immediately (window is open).
         
-        Creates one PreparedNotification per active delivery channel.
+        T021 INTEGRATION: Deduplication gate happens here
+        
+        Creates one PreparedNotification per active delivery channel,
+        but only if it's not a duplicate (dedup check per channel).
+        
+        Deduplication flow:
+        1. Get list of active channels
+        2. For each channel:
+           a. Call dedup_service.is_duplicate_and_mark()
+              - Checks if this (user, subscription, channel, event_type) was seen in last 12h
+              - Atomically marks it in Redis with 12h TTL if new
+              - Returns status: FIRST_OCCURRENCE, DUPLICATE, or CHECK_FAILED
+           b. FIRST_OCCURRENCE → proceed to create PreparedNotification
+           c. DUPLICATE → skip (already notified in last 12h)
+           d. CHECK_FAILED → proceed anyway (conservative: don't block on Redis errors)
+        3. Only PreparedNotifications for passing channels are added to result
         """
         # Get active delivery channels
         active_channels = self._filter_active_channels(subscription.channels)
@@ -374,8 +408,37 @@ class NotificationOrchestrator:
             # Subscription has no active channels, skip
             return
         
-        # Create one notification per channel
+        # Create one notification per channel, but check dedup first
         for channel in active_channels:
+            # T021: DEDUP GATE - Check deduplication per channel
+            try:
+                dedup_result = await self.deduplication_service.is_duplicate_and_mark(
+                    user_id=subscription.user_id,
+                    subscription_id=subscription.id,
+                    channel=channel.type,  # email, push, webhook
+                    event_type=str(condition_result.event_type),
+                )
+            except Exception as e:
+                # Redis error during dedup check
+                # Conservative: log and proceed (don't block delivery)
+                dedup_result = None
+            
+            # Determine if we should send this notification
+            should_send = True
+            if dedup_result:
+                if dedup_result.status == DuplicationStatus.DUPLICATE:
+                    # Skip: already notified within 12h
+                    should_send = False
+                elif dedup_result.status == DuplicationStatus.CHECK_FAILED:
+                    # Conservative: proceed anyway
+                    should_send = True
+                # FIRST_OCCURRENCE: should_send = True (already set above)
+            
+            if not should_send:
+                # Skip this channel (deduplicated)
+                continue
+            
+            # Create notification for this channel
             notification = PreparedNotification(
                 subscription_id=subscription.id,
                 user_id=subscription.user_id,
